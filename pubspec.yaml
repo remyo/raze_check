@@ -1,0 +1,39 @@
+name: raze_check
+description: Standalone offline Raze Check mobile application.
+publish_to: none
+version: 0.1.0+1
+environment:
+  sdk: ^3.12.2
+  flutter: '>=3.44.7'
+workspace:
+  - packages/raze_check_core
+  - packages/raze_check_local
+  - packages/raze_check_feature
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: 3.4.3
+  timezone: 0.11.0
+  raze_check_core:
+    path: packages/raze_check_core
+  raze_check_local:
+    path: packages/raze_check_local
+  raze_check_feature:
+    path: packages/raze_check_feature
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  flutter_lints: 6.0.0
+  flutter_launcher_icons: 0.14.4
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/branding/raze_check_logo_master.png
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/branding/raze_check_logo_master.png
+  remove_alpha_ios: true
+  min_sdk_android: 24

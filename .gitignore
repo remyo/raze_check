@@ -1,0 +1,19 @@
+# Local agent working records.
+.superpowers/
+
+# Dart and Flutter generated state.
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+**/build/
+coverage/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Editor and workstation state.
+.idea/
+*.iml
+.DS_Store
+.fvm/

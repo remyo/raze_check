@@ -1,0 +1,17 @@
+Raze Check app icon concept v1
+
+Generated with the built-in image_gen tool on 2026-10-19.
+Status: approved by the user on 2026-10-19; master preserved and used for startup branding and generated Android/iOS launcher assets.
+References: current RazeTag and Raze Store master icons, read-only.
+Asset: raze_check_logo_master.png (original generated concept: raze-check-icon-concept-v1.png)
+
+Final generation prompt:
+
+Use case: logo-brand.
+Asset type: one square raster mobile app icon concept for Raze Check, an offline-first staff attendance/check-in and management app, a sibling of RazeTag and Raze Store.
+Input image 1: /Users/rem/Desktop/rem_dev/razetag/assets/branding/razetag_logo_master.png — BRAND FAMILY AND COMPOSITION reference. Keep the charming simple cream/white smiling mascot peeking diagonally from the lower-left, round eyes, curved smile, rounded silhouette, and small attached tag with a bold R.
+Input image 2: /Users/rem/Desktop/rem_dev/raze_store/assets/branding/raze_store_app_icon.png — BRAND FAMILY AND FINISH reference. Match its friendly flat artwork, oversized tilted mascot, crisp bold shapes, and small warm cream hanging R tag. Create a sibling attendance identity.
+Primary request: Reimagine that family mascot as a warm-ivory attendance clipboard/card, tilted slightly clockwise and peeking up from the lower-left. Its lower-left body extends off-canvas intentionally, as in the references. Use a simple rounded rectangular clipboard silhouette with one short rounded mint clip at the top center, one large unmistakable dark teal checkmark in the upper part of the card, and the two dark teal circular eyes and broad curved happy smile below. Keep face and checkmark distinctly separated. A small warm-ivory tag hangs to the right from one short thick cream curved loop, containing the single bold uppercase R, closely matching the family reference. All important identifying details, face, checkmark and R tag remain comfortably within a circular or rounded-square mobile icon mask safe area. Plenty of uninterrupted teal negative space across the upper fifth.
+Style: flat, vector-like raster brand artwork, simple friendly geometry, very few shapes, polished consistent curves, strong legibility at 48px. Match the references' visual weight and charm.
+Palette: rich teal-blue background #087F8C, warm ivory mascot #FFF6E2, dark teal facial details and checkmark #086674, restrained mint clip accent #9EE5D0. Teal should be distinct from Raze Store's forest green and RazeTag's purple. Opaque color extends to all four edges.
+Output: exactly one standalone 1024x1024 square app icon. No pre-rounded outside corners, no outside padding, no presentation board, no text captions, no app-name wordmark, no phone mockup. Only text is the single R on the hanging tag. No numbers, tiny QR pattern, clock, extra badges, people, photorealism, 3D, bevels, glossy highlights, heavy shadows, borders, or watermark.
