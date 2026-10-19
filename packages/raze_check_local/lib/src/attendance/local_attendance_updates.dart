@@ -5,11 +5,11 @@ extension _AttendanceUpdates on LocalAttendanceService {
     SessionHandle session,
     VerifiedMessage update,
   ) async {
-    final actor = AttendanceAuthorization(identity).requirePersonal(session),
-        msg = update.message,
-        p = msg.payload;
-    final companyId = p.companyId;
     try {
+      final actor = AttendanceAuthorization(identity).requirePersonal(session),
+          msg = update.message,
+          p = msg.payload;
+      final companyId = p.companyId;
       final c = await _company(companyId, _QueryView(repository, companyId));
       final context = CommandContext(
         companyId: companyId,

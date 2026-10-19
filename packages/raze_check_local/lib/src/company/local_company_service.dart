@@ -7,6 +7,7 @@ import '../database/local_check_repository.dart';
 import '../security/local_identity_service.dart';
 import '../security/local_key_service.dart';
 import '../security/secure_key_store.dart';
+import '../recovery/local_authority_history.dart';
 
 /// Domain commands over the real encrypted journal. No UI role is trusted.
 final class LocalCompanyService implements CompanyService {
@@ -39,6 +40,7 @@ final class LocalCompanyService implements CompanyService {
   ]) => StoredRecord(id, company, kind, revision, _bytes(value));
   String _index(String person) => 'member-index:$person';
   void _companyRestriction(ActorIdentity actor, String company) {
+    actor.requireCompany(company);
     if (actor.restrictedCompanyId != null &&
         actor.restrictedCompanyId != company) {
       throw const CheckException(CheckError.wrongCompany);
@@ -94,6 +96,10 @@ final class LocalCompanyService implements CompanyService {
             context.authorityGenerationId) {
       throw const CheckException(CheckError.recoveryRequired);
     }
+    await requireCurrentManagement(
+      Company.fromJson(_json(row)),
+      view ?? RepositoryReadView(repository, context.companyId),
+    );
     return member;
   }
 
@@ -171,6 +177,7 @@ final class LocalCompanyService implements CompanyService {
         ids: ids,
       );
       final companyId = reservation.companyId;
+      await identity.completeCreatedCompanyBinding(actor, companyId);
       if (await keys.read('vault:$companyId') == null) {
         await VaultKeys(keys).create(companyId);
       }
@@ -181,7 +188,7 @@ final class LocalCompanyService implements CompanyService {
         operationId: operationId,
         authorityGenerationId: reservation.authorityGenerationId,
       );
-      return await _convert(
+      final accepted = await _convert(
         repository.commit(
           context,
           requestDigest: digest,
@@ -307,13 +314,42 @@ final class LocalCompanyService implements CompanyService {
                 }),
                 _row(companyId, employee, 'staff', staff.toJson()),
               ],
-              [],
+              [
+                _row(
+                  companyId,
+                  'installation-binding:${current.installationId}',
+                  'installationBinding',
+                  {
+                    'reason': 'createdCompany',
+                    'personId': current.personId,
+                    'installationId': current.installationId,
+                    'publicKey': base64UrlEncode(current.publicKey),
+                    'operationId': operationId,
+                    'digest': base64Encode(digest),
+                    'generationId': generation,
+                    'signature': base64UrlEncode(
+                      await signing.sign(
+                        Uint8List.fromList(
+                          utf8.encode(
+                            'RAZE_CHECK_LOCAL_COMPANY_BINDING_V1\n${jsonEncode([companyId, current.personId, current.installationId, base64UrlEncode(current.publicKey), operationId, base64Encode(digest), generation])}',
+                          ),
+                        ),
+                        current.signingKeyId,
+                      ),
+                    ),
+                  },
+                ),
+              ],
               [],
               result,
               authorityHistory: [authorityRecord],
               recovery: [recovery],
               personalRecords: [
                 PersonalRecordAssociation(owner.personId, companyId),
+                PersonalRecordAssociation(
+                  owner.personId,
+                  'installation-binding:${current.installationId}',
+                ),
                 PersonalRecordAssociation(owner.personId, owner.id),
                 PersonalRecordAssociation(owner.personId, employee),
                 PersonalRecordAssociation(owner.personId, authorityRecord.id),
@@ -324,6 +360,10 @@ final class LocalCompanyService implements CompanyService {
         Company.fromJson,
         session,
       );
+      if (accepted is Committed<Company>) {
+        await identity.completeCreatedCompanyBinding(actor, companyId);
+      }
+      return accepted;
     } finally {
       done.complete();
     }
@@ -354,6 +394,10 @@ final class LocalCompanyService implements CompanyService {
         : [actor.restrictedCompanyId!];
     final companies = <Company>[];
     for (final id in companyIds) {
+      if (actor.authorizedCompanyIds != null &&
+          !actor.authorizedCompanyIds!.contains(id)) {
+        continue;
+      }
       final company = await readCompany(session, id);
       if (company != null) companies.add(company);
     }

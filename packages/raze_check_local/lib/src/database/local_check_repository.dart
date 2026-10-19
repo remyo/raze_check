@@ -291,13 +291,48 @@ final class LocalCheckRepository implements CheckRepository {
     required Future<Mutation> Function(ReadView) build,
     Future<void> Function(ReadView)? authorize,
     void Function()? beforeCommit,
+  }) => _commit(
+    context,
+    requestDigest: requestDigest,
+    build: build,
+    authorize: authorize,
+    beforeCommit: beforeCommit,
+  );
+
+  /// Recovery services must verify exact grant/target/root authorization inside
+  /// authorize. This adapter boundary is intentionally absent from core/UI.
+  Future<CommandResult<StoredRecord>> commitRecovery(
+    CommandContext context, {
+    required Uint8List requestDigest,
+    required Future<Mutation> Function(ReadView) build,
+    required Future<void> Function(ReadView) authorize,
+    required void Function() beforeCommit,
+    bool releasePassive = false,
+  }) => _commit(
+    context,
+    requestDigest: requestDigest,
+    build: build,
+    authorize: authorize,
+    beforeCommit: beforeCommit,
+    recovery: true,
+    releasePassive: releasePassive,
+  );
+
+  Future<CommandResult<StoredRecord>> _commit(
+    CommandContext context, {
+    required Uint8List requestDigest,
+    required Future<Mutation> Function(ReadView) build,
+    Future<void> Function(ReadView)? authorize,
+    void Function()? beforeCommit,
+    bool recovery = false,
+    bool releasePassive = false,
   }) {
     final digest = Uint8List.fromList(requestDigest);
     return _exclusive(() async {
       try {
         _validateIntent(context, digest);
         return await _db.transaction<CommandResult<StoredRecord>>(() async {
-          await _requireWritable(context.companyId);
+          if (!recovery) await _requireWritable(context.companyId);
           final existing = await _operation(
             context.companyId,
             context.operationId,
@@ -447,6 +482,12 @@ final class LocalCheckRepository implements CheckRepository {
             variables: [_i(next), _s(context.companyId)],
             updates: {_db.companyScopes},
           );
+          if (releasePassive) {
+            await _db.customStatement(
+              'DELETE FROM passive_scopes WHERE company_id=?',
+              [context.companyId],
+            );
+          }
           beforeCommit?.call();
           return Committed(mutation.result, next, false);
         });
@@ -896,6 +937,21 @@ final class LocalCheckRepository implements CheckRepository {
   );
 
   Future<void> _requireWritable(String company) async {
+    final lifecycle = await _read(company, 'authority-lifecycle');
+    if (lifecycle != null &&
+        (jsonDecode(utf8.decode(lifecycle.payload)) as Map)['state'] !=
+            'active') {
+      throw const CheckException(CheckError.recoveryRequired);
+    }
+    final conflicts = await _db
+        .customSelect(
+          "SELECT 1 FROM stored_rows WHERE company_id=? AND kind='authorityConflict' LIMIT 1",
+          variables: [_s(company)],
+        )
+        .getSingleOrNull();
+    if (conflicts != null) {
+      throw const CheckException(CheckError.recoveryRequired);
+    }
     if (await _db
             .customSelect(
               'SELECT 1 FROM passive_scopes WHERE company_id=?',

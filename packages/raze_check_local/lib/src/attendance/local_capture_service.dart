@@ -5,6 +5,7 @@ import 'package:raze_check_core/raze_check_core.dart';
 import '../security/local_key_service.dart';
 import 'attendance_authorization.dart';
 import '../security/secure_key_store.dart';
+import '../recovery/local_authority_history.dart';
 
 /// All issuance authorization is inside the repository transaction, on both
 /// fresh writes and journal replays. Incoming VerifiedMessage is never trusted.
@@ -44,25 +45,28 @@ final class LocalCaptureService implements CaptureService {
       authorization.requirePersonal(session);
 
   void _live(SessionHandle session) => identity.requireActor(session);
-  TrustContext _trust(Company c) => TrustContext(
-    companyId: c.id,
-    rootPublicKey: base64Url.decode(c.rootPublicKey),
-    authorities: [AuthorityCertificate(c.authority)],
-  );
-
-  Future<void> _workplace(SignedMessage message, Company company) async {
+  Future<void> _workplace(
+    SignedMessage message,
+    Company company,
+    ReadView view,
+  ) async {
     if (message.kind != MessageKind.workplace) {
       throw const CheckException(CheckError.malformed);
     }
     if (message.payload.companyId != company.id) {
       throw const CheckException(CheckError.wrongCompany);
     }
-    await MessageVerifier(signing).verify(message, _trust(company));
+    final trust = await companyTrust(company, view);
+    await MessageVerifier(signing).verify(message, trust);
+    final certificate = AuthorityCertificate(
+      message.payload.field<List<Object?>>('authority'),
+    );
+    final current = AuthorityCertificate(company.authority);
     if (message.payload.field<String>('workplaceId') != company.workplaceId ||
-        AuthorityCertificate(
-              message.payload.field<List<Object?>>('authority'),
-            ).generationId !=
-            company.authorityGenerationId) {
+        !trust.authorities.any(
+          (a) => jsonEncode(a.values) == jsonEncode(certificate.values),
+        ) ||
+        certificate.sequence < current.sequence) {
       throw const CheckException(CheckError.recoveryRequired);
     }
   }
@@ -185,6 +189,7 @@ final class LocalCaptureService implements CaptureService {
         final c = await view.read(context.companyId);
         if (c == null) throw const CheckException(CheckError.wrongCompany);
         company = Company.fromJson(_json(c));
+        await requireCurrentManagement(company, view);
         if (company.authorityGenerationId != context.authorityGenerationId ||
             company.authoritySigningKeyId.isEmpty ||
             AuthorityCertificate(company.authority).installationId !=
@@ -211,10 +216,15 @@ final class LocalCaptureService implements CaptureService {
       (id) => repository.read(companyId, id),
     );
     final signed = codec.decode(bytes, maxBytes: MessageLimits.fileBytes);
-    await _workplace(signed, a.company);
-    final result = await MessageVerifier(
-      signing,
-    ).verify(signed, _trust(a.company));
+    await _workplace(
+      signed,
+      a.company,
+      RepositoryReadView(repository, companyId),
+    );
+    final result = await MessageVerifier(signing).verify(
+      signed,
+      await companyTrust(a.company, RepositoryReadView(repository, companyId)),
+    );
     _live(session);
     return result;
   }
@@ -248,6 +258,20 @@ final class LocalCaptureService implements CaptureService {
       context,
       ['begin-capture', actor.personId, kind.name, wire],
       (view) async {
+        final remoteId = 'remote-authority:${actor.personId}';
+        final remote = await view.read(remoteId);
+        final remoteRows = <StoredRecord>[];
+        final fields = workplace.message.payload.field<List<Object?>>(
+          'authority',
+        );
+        if (remote == null ||
+            jsonEncode(_json(remote)['authority']) != jsonEncode(fields)) {
+          remoteRows.add(
+            _row(companyId, remoteId, 'remoteAuthority', {
+              'authority': fields,
+            }, (remote?.revision ?? 0) + 1),
+          );
+        }
         final slotId = 'capture-slot:${actor.personId}';
         final slot = await view.read(slotId);
         final previous = slot == null
@@ -285,25 +309,21 @@ final class LocalCaptureService implements CaptureService {
           'operationId': op,
         }, (slot?.revision ?? 0) + 1);
         return Mutation(
-          [row, slotRow],
+          [row, slotRow, ...remoteRows],
           [],
           [],
           row,
           personalRecords: [
             PersonalRecordAssociation(actor.personId, row.id),
             PersonalRecordAssociation(actor.personId, slotId),
+            PersonalRecordAssociation(actor.personId, remoteId),
           ],
           personalOperationOwners: {actor.personId},
         );
       },
       (view) async {
-        final a = await authorization.require(
-          session,
-          companyId,
-          view.read,
-          generation: authority,
-        );
-        await _workplace(workplace.message, a.company);
+        final a = await authorization.require(session, companyId, view.read);
+        await _workplace(workplace.message, a.company, view);
       },
     );
     return _draft(_value(result));
@@ -404,6 +424,7 @@ final class LocalCaptureService implements CaptureService {
       final actor = _actor(context.session);
       final wire = base64UrlEncode(codec.encode(workplace.message));
       late Membership member;
+      late String credentialGeneration;
       final result = await _commit(
         context,
         ['capture', actor.personId, actor.installationId, kind.name, wire],
@@ -427,7 +448,7 @@ final class LocalCaptureService implements CaptureService {
               offset,
               workplace.message.payload.field<String>('workplaceId'),
               workplace.message.payload.field<String>('codeId'),
-              context.authorityGenerationId,
+              credentialGeneration,
               'staticQr',
             ],
             actor.signingKeyId,
@@ -504,7 +525,13 @@ final class LocalCaptureService implements CaptureService {
             generation: context.authorityGenerationId,
           );
           member = a.member;
-          await _workplace(workplace.message, a.company);
+          final credential = await view.read(
+            'credential:${member.id}:${member.revision}',
+          );
+          credentialGeneration = credential == null
+              ? a.company.authorityGenerationId
+              : _json(credential)['authorityGenerationId'] as String;
+          await _workplace(workplace.message, a.company, view);
           final draft = await view.read(
             'capture-intent:${context.operationId}',
           );

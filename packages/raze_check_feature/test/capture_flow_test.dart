@@ -1,6 +1,8 @@
 @Timeout(Duration(minutes: 2))
 library;
 
+import 'support/settle_review.dart';
+
 import 'dart:typed_data';
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -37,7 +39,7 @@ void main() {
       await tester.pump();
       await Future<void>.delayed(const Duration(milliseconds: 500));
     });
-    await tester.pumpAndSettle();
+    await settleReview(tester);
   }
 
   Future<void> show(WidgetTester tester, CapturePort port) async {
@@ -60,7 +62,7 @@ void main() {
       );
       await Future<void>.delayed(const Duration(milliseconds: 500));
     });
-    await tester.pumpAndSettle();
+    await settleReview(tester);
   }
 
   testWidgets(

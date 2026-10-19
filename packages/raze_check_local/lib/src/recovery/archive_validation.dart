@@ -110,6 +110,7 @@ final class ArchiveValidation {
             !people.add(p['personId'] as String)) {
           archiveBad();
         }
+        final installationKeys = <String, String>{};
         for (final i in p['installations'] as List) {
           if (i is! List ||
               i.length != 2 ||
@@ -117,6 +118,11 @@ final class ArchiveValidation {
               base64Url.decode(i[1] as String).length != 32) {
             archiveBad();
           }
+          final prior = installationKeys[i[0]];
+          if (prior != null && prior != i[1]) {
+            archiveBad(CheckError.duplicateConflict);
+          }
+          installationKeys[i[0] as String] = i[1] as String;
         }
         profiles.add(p);
       }

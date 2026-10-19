@@ -25,6 +25,7 @@ final class AttendanceAuthorization {
     bool issue = true,
   }) async {
     final actor = requirePersonal(session);
+    actor.requireCompany(companyId);
     final index = await read('member-index:${actor.personId}');
     final memberRow = index == null
         ? null
@@ -37,7 +38,35 @@ final class AttendanceAuthorization {
     if (issue) AccessPolicy(identity).requireMembership(actor, member);
     final companyRow = await read(companyId);
     if (companyRow == null) throw const CheckException(CheckError.wrongCompany);
-    final company = Company.fromJson(_json(companyRow));
+    var company = Company.fromJson(_json(companyRow));
+    final localAuthority = AuthorityCertificate(company.authority);
+    if (localAuthority.generationId != company.authorityGenerationId) {
+      throw const CheckException(CheckError.recoveryRequired);
+    }
+    final remote = await read('remote-authority:${actor.personId}');
+    if (remote != null && !member.owner) {
+      final a = AuthorityCertificate(
+        List<Object?>.from(_json(remote)['authority'] as List),
+      );
+      final known = await read(a.generationId);
+      if (known == null ||
+          known.kind != 'authority' ||
+          utf8.decode(known.payload) != jsonEncode(a.values)) {
+        throw const CheckException(CheckError.recoveryRequired);
+      }
+      if (a.sequence == localAuthority.sequence &&
+          a.generationId != localAuthority.generationId) {
+        throw const CheckException(CheckError.recoveryRequired);
+      }
+      if (a.sequence >= localAuthority.sequence) {
+        company = Company.fromJson({
+          ...company.toJson(),
+          'authorityGenerationId': a.generationId,
+          'authority': a.values,
+          'authoritySigningKeyId': '',
+        });
+      }
+    }
     if (generation != null && company.authorityGenerationId != generation) {
       throw const CheckException(CheckError.recoveryRequired);
     }
@@ -66,9 +95,12 @@ final class AttendanceAuthorization {
             c['membershipId'] != member.id ||
             c['membershipRevision'] != member.revision ||
             c['installationId'] != actor.installationId ||
-            c['publicKey'] != base64UrlEncode(actor.publicKey) ||
-            c['authorityGenerationId'] != company.authorityGenerationId) {
+            c['publicKey'] != base64UrlEncode(actor.publicKey)) {
           throw const CheckException(CheckError.revokedCredential);
+        }
+        final issuing = await read(c['authorityGenerationId'] as String);
+        if (issuing == null || issuing.kind != 'authority') {
+          throw const CheckException(CheckError.unknownIssuer);
         }
       }
     }

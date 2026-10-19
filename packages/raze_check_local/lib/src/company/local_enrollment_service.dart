@@ -3,11 +3,62 @@ import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
 import 'package:raze_check_core/raze_check_core.dart';
 import '../security/local_key_service.dart';
+import '../security/local_identity_service.dart';
 import '../security/secure_key_store.dart';
+import '../recovery/local_authority_history.dart';
+part 'invitation_history.dart';
 
 /// Offline enrollment over encrypted, transactional local records. Neither
 /// decoded messages nor self-signed requests confer company membership.
-final class LocalEnrollmentService implements EnrollmentService {
+final class LocalEnrollmentService
+    implements
+        EnrollmentService,
+        InvitationHistoryService,
+        RecoveryInvitationService {
+  @override
+  Future<VerifiedMessage> verifyInvitationCandidate(
+    SessionHandle session,
+    InvitationCandidate candidate,
+  ) async {
+    final c = _candidate(session, candidate);
+    final verified = await MessageVerifier(signing).verify(
+      c.message,
+      TrustContext(
+        companyId: c.message.payload.companyId,
+        rootPublicKey: c.root,
+        authorities: c.chain,
+      ),
+    );
+    _candidate(session, candidate);
+    return verified;
+  }
+
+  @override
+  Future<void> bindRecoveryInvitation(
+    SessionHandle session,
+    InvitationCandidate invitation,
+    RecoveryIdentityCandidate candidate,
+  ) async {
+    final consent = _candidate(session, invitation);
+    final local = identity as LocalIdentityService;
+    final draft = local.requireRecoveryIdentity(session, candidate);
+    if (consent.message.payload.companyId != draft.companyId ||
+        consent.fingerprint != draft.rootFingerprint) {
+      throw const CheckException(CheckError.unauthorized);
+    }
+    final trust = TrustContext(
+      companyId: draft.companyId,
+      rootPublicKey: consent.root,
+      authorities: consent.chain,
+    );
+    await MessageVerifier(signing).verify(consent.message, trust);
+    _candidate(session, invitation);
+    local.requireRecoveryIdentity(session, candidate);
+    draft.publicTrust = trust;
+    draft.publicTrustGuard = () => _candidate(session, invitation);
+    draft.consentedInvitation = consent.message;
+  }
+
   LocalEnrollmentService({
     required this.repository,
     required this.identity,
@@ -24,7 +75,6 @@ final class LocalEnrollmentService implements EnrollmentService {
   final KeyService signing;
   final AccessPolicy policy;
   final codec = MessageCodec();
-  Future<void> _pinTail = Future.value();
   static Uint8List _bytes(Object? v) =>
       Uint8List.fromList(utf8.encode(jsonEncode(v)));
   static Map<String, dynamic> _json(StoredRecord r) =>
@@ -56,6 +106,7 @@ final class LocalEnrollmentService implements EnrollmentService {
   @override
   void requireTransferSession(SessionHandle session, {String? companyId}) {
     final actor = identity.requireActor(session);
+    if (companyId != null) actor.requireCompany(companyId);
     if (actor.restrictedCompanyId != null &&
         actor.restrictedCompanyId != companyId) {
       throw const CheckException(CheckError.wrongCompany);
@@ -73,19 +124,6 @@ final class LocalEnrollmentService implements EnrollmentService {
     }
   }
 
-  TrustContext _companyTrust(Company company) => TrustContext(
-    companyId: company.id,
-    rootPublicKey: base64Url.decode(company.rootPublicKey),
-    authorities: [AuthorityCertificate(company.authority)],
-  );
-  TrustContext _pinTrust(String companyId, Map<String, dynamic> pin) =>
-      TrustContext(
-        companyId: companyId,
-        rootPublicKey: base64Url.decode(pin['rootPublicKey'] as String),
-        authorities: [
-          AuthorityCertificate(List<Object?>.from(pin['authority'] as List)),
-        ],
-      );
   Future<SignedMessage> _sign(
     MessageKind kind,
     List<Object?> values,
@@ -129,6 +167,7 @@ final class LocalEnrollmentService implements EnrollmentService {
         company.authoritySigningKeyId.isEmpty) {
       throw const CheckException(CheckError.recoveryRequired);
     }
+    await requireCurrentManagement(company, view);
     return company;
   }
 
@@ -231,93 +270,39 @@ final class LocalEnrollmentService implements EnrollmentService {
     Uint8List bytes, {
     required String acceptedRootFingerprint,
   }) async {
-    final prior = _pinTail;
-    final work = () async {
-      await prior;
-      final actor = _personal(session);
-      final message = codec.decode(bytes, maxBytes: MessageLimits.fileBytes);
-      if (message.kind != MessageKind.invitation) {
-        throw const CheckException(CheckError.malformed);
-      }
-      final p = message.payload;
-      final root = base64Url.decode(p.field<String>('rootPublicKeyBase64Url'));
-      final fingerprint = await _fingerprint(root);
-      if (acceptedRootFingerprint != fingerprint) {
-        throw const CheckException(CheckError.unauthorized);
-      }
-      final candidate = TrustContext(
-        companyId: p.companyId,
-        rootPublicKey: root,
-        authorities: [
-          AuthorityCertificate(p.field<List<Object?>>('authority')),
-        ],
-      );
-      final verified = await MessageVerifier(
-        signing,
-      ).verify(message, candidate);
-      _personal(session);
-      // Provision only after explicit acceptance and cryptographic validation.
-      if (await keys.read('vault:${p.companyId}') == null) {
-        await VaultKeys(keys).create(p.companyId);
-      }
-      final context = CommandContext(
-        companyId: p.companyId,
-        session: session,
-        operationId: 'pin:${p.messageId}:${actor.personId}',
-        authorityGenerationId: candidate.authorities.single.generationId,
-      );
-      final pinId = 'enrollment-trust:${actor.personId}';
-      final result = await _commit(
-        context,
-        ['pin', actor.personId, base64UrlEncode(bytes)],
-        (_) async {
-          final row = _row(p.companyId, pinId, 'enrollmentTrust', {
-            'personId': actor.personId,
-            'rootPublicKey': base64UrlEncode(root),
-            'rootFingerprint': fingerprint,
-            'authority': candidate.authorities.single.values,
-          });
-          final invitation = _messageRow(
-            message,
-            'accepted-invitation:${p.messageId}:${actor.personId}',
-            'acceptedInvitation',
-          );
-          return Mutation(
-            [row, invitation],
-            [],
-            [],
-            row,
-            personalRecords: [
-              PersonalRecordAssociation(actor.personId, row.id),
-              PersonalRecordAssociation(actor.personId, invitation.id),
-            ],
-            personalOperationOwners: {actor.personId},
-          );
-        },
-        (view) async {
-          _personal(session);
-          final pin = await view.read(pinId);
-          if (pin != null && _json(pin)['rootFingerprint'] != fingerprint) {
-            throw const CheckException(CheckError.invalidSignature);
-          }
-          if (pin != null) {
-            await MessageVerifier(
-              signing,
-            ).verify(message, _pinTrust(p.companyId, _json(pin)));
-          }
-          final company = await view.read(p.companyId);
-          if (company != null &&
-              Company.fromJson(_json(company)).rootFingerprint != fingerprint) {
-            throw const CheckException(CheckError.invalidSignature);
-          }
-        },
-        (r) => r,
-      );
-      await _value(result);
-      return verified;
-    }();
-    _pinTail = work.then<void>((_) {}, onError: (Object _, StackTrace _) {});
-    return work;
+    final candidate = await beginInvitation(
+      session,
+      bytes,
+      acceptedRootFingerprint: acceptedRootFingerprint,
+    );
+    try {
+      return await finishInvitation(session, candidate);
+    } finally {
+      cancelInvitation(candidate);
+    }
+  }
+
+  final _candidates = Map<InvitationCandidate, _InvitationCandidate>.identity();
+  @override
+  Future<InvitationCandidate> beginInvitation(
+    SessionHandle session,
+    Uint8List bytes, {
+    required String acceptedRootFingerprint,
+  }) => _beginInvitation(session, bytes, acceptedRootFingerprint);
+  @override
+  Future<void> stageHistory(
+    SessionHandle session,
+    InvitationCandidate candidate,
+    Uint8List bytes,
+  ) => _stageHistory(session, candidate, bytes);
+  @override
+  Future<VerifiedMessage> finishInvitation(
+    SessionHandle session,
+    InvitationCandidate candidate,
+  ) => _finishInvitation(session, candidate);
+  @override
+  void cancelInvitation(InvitationCandidate candidate) {
+    _candidates.remove(candidate);
   }
 
   @override
@@ -328,6 +313,7 @@ final class LocalEnrollmentService implements EnrollmentService {
     final actor = identity.requireActor(session);
     final message = codec.decode(bytes, maxBytes: MessageLimits.fileBytes);
     final companyId = message.payload.companyId;
+    actor.requireCompany(companyId);
     if (actor.restrictedCompanyId != null &&
         actor.restrictedCompanyId != companyId) {
       throw const CheckException(CheckError.wrongCompany);
@@ -338,7 +324,11 @@ final class LocalEnrollmentService implements EnrollmentService {
     );
     TrustContext trust;
     if (pin != null) {
-      trust = _pinTrust(companyId, _json(pin));
+      trust = await pinTrust(
+        companyId,
+        _json(pin),
+        RepositoryReadView(repository, companyId),
+      );
     } else {
       final index = await repository.read(
         companyId,
@@ -359,7 +349,10 @@ final class LocalEnrollmentService implements EnrollmentService {
       if (companyRow == null) {
         throw const CheckException(CheckError.unknownIssuer);
       }
-      trust = _companyTrust(Company.fromJson(_json(companyRow)));
+      trust = await companyTrust(
+        Company.fromJson(_json(companyRow)),
+        RepositoryReadView(repository, companyId),
+      );
     }
     final verified = await MessageVerifier(signing).verify(message, trust);
     _live(session);
@@ -448,7 +441,7 @@ final class LocalEnrollmentService implements EnrollmentService {
         }
         await MessageVerifier(
           signing,
-        ).verify(message, _pinTrust(p.companyId, _json(pin)));
+        ).verify(message, await pinTrust(p.companyId, _json(pin), view));
         if (await view.read('member-index:${actor.personId}') != null) {
           throw const CheckException(CheckError.invalidTransition);
         }
@@ -675,7 +668,7 @@ final class LocalEnrollmentService implements EnrollmentService {
           company = await _authorize(context, view);
           await MessageVerifier(
             signing,
-          ).verify(message, _companyTrust(company));
+          ).verify(message, await companyTrust(company, view));
           final invite = await view.read(
             'invitation:${p.field<String>('invitationId')}',
           );
@@ -800,6 +793,25 @@ final class LocalEnrollmentService implements EnrollmentService {
       return stored;
     }
 
+    final lineage = await acceptedAuthorities(view, authority);
+    final remoteId = 'remote-authority:${actor.personId}';
+    final remote = await view.read(remoteId);
+    if (remote != null &&
+        AuthorityCertificate(
+              List<Object?>.from(_json(remote)['authority'] as List),
+            ).sequence >
+            authority.sequence) {
+      throw const CheckException(CheckError.revokedCredential);
+    }
+    if (remote == null ||
+        jsonEncode(_json(remote)['authority']) !=
+            jsonEncode(authority.values)) {
+      records.add(
+        _row(p.companyId, remoteId, 'remoteAuthority', {
+          'authority': authority.values,
+        }, (remote?.revision ?? 0) + 1),
+      );
+    }
     final retainedMember = await reuse(memberRow, records);
     final retainedCompany = await reuse(
       _row(p.companyId, company.id, 'company', company.toJson()),
@@ -809,8 +821,11 @@ final class LocalEnrollmentService implements EnrollmentService {
         if (existing.id != company.id ||
             existing.rootPublicKey != company.rootPublicKey ||
             existing.rootFingerprint != company.rootFingerprint ||
-            existing.authorityGenerationId != company.authorityGenerationId ||
-            !_sameJson(existing.authority, company.authority) ||
+            !lineage.any(
+              (a) => jsonEncode(a.values) == jsonEncode(existing.authority),
+            ) ||
+            AuthorityCertificate(existing.authority).sequence >
+                authority.sequence ||
             existing.name != company.name ||
             existing.timeZoneId != company.timeZoneId ||
             existing.workplaceId != company.workplaceId) {
@@ -856,6 +871,7 @@ final class LocalEnrollmentService implements EnrollmentService {
       retainedMember,
       authorityHistory: historyRows,
       personalRecords: [
+        PersonalRecordAssociation(actor.personId, remoteId),
         for (final row in [
           retainedMember,
           retainedCompany,
@@ -929,8 +945,11 @@ final class LocalEnrollmentService implements EnrollmentService {
           pin = _json(pinRow);
           await MessageVerifier(
             signing,
-          ).verify(message, _pinTrust(p.companyId, pin));
-          if (jsonEncode(pin['authority']) != jsonEncode(authority.values)) {
+          ).verify(message, await pinTrust(p.companyId, pin, view));
+          if (!(await acceptedAuthorities(
+            view,
+            AuthorityCertificate(List<Object?>.from(pin['authority'] as List)),
+          )).any((a) => jsonEncode(a.values) == jsonEncode(authority.values))) {
             throw const CheckException(CheckError.recoveryRequired);
           }
           final pending = await view.read(
@@ -985,6 +1004,10 @@ final class LocalEnrollmentService implements EnrollmentService {
     for (final row in snapshot.records.where(
       (row) => row.kind == 'pendingJoin',
     )) {
+      if (actor.authorizedCompanyIds != null &&
+          !actor.authorizedCompanyIds!.contains(row.companyId)) {
+        continue;
+      }
       final request = _decode(row);
       if (request.payload.field<String>('personId') != actor.personId ||
           request.payload.field<String>('installationId') !=
@@ -1014,6 +1037,20 @@ final class LocalEnrollmentService implements EnrollmentService {
     String companyId,
   ) async {
     final actor = _personal(session);
+    if (actor.authorizedCompanyIds != null &&
+        !actor.authorizedCompanyIds!.contains(companyId)) {
+      return false;
+    }
+    if ((await RepositoryReadView(
+      repository,
+      companyId,
+    ).list('authorityConflict')).isNotEmpty) {
+      return false;
+    }
+    final lifecycle = await repository.read(companyId, 'authority-lifecycle');
+    if (lifecycle != null && _json(lifecycle)['state'] != 'active') {
+      return false;
+    }
     final index = await repository.read(
       companyId,
       'member-index:${actor.personId}',

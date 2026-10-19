@@ -1,11 +1,16 @@
 import 'dart:convert';
 import 'dart:isolate';
+import 'dart:io';
+import '../files/durable_directory.dart';
+import '../database/local_check_repository.dart';
+import 'payload_cipher.dart';
 import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
 import 'package:raze_check_core/raze_check_core.dart';
 import 'local_key_service.dart';
 import 'profile_catalog.dart';
 import 'secure_key_store.dart';
+part 'recovery_identity.dart';
 
 // KDF runs in a worker isolate: never lower the work factor to keep UI responsive.
 Future<Uint8List> operatorVerifier(String passphrase, Uint8List salt) =>
@@ -25,13 +30,16 @@ Future<Uint8List> operatorVerifier(String passphrase, Uint8List salt) =>
 
 final class _LocalSession implements SessionHandle {
   _LocalSession(this.actor, this.lastActivity);
-  final ActorIdentity actor;
+  ActorIdentity actor;
   DateTime lastActivity;
 }
 
 /// Serializes identity mutations and issues non-serializable live capabilities.
 final class LocalIdentityService
-    implements IdentityService, ActivityIdentityService {
+    implements
+        IdentityService,
+        ActivityIdentityService,
+        RecoveryIdentityService {
   LocalIdentityService({
     required this.keys,
     required this.catalog,
@@ -44,6 +52,35 @@ final class LocalIdentityService
   final CheckClock clock;
   final IdGenerator ids;
   final CheckRepository? repository;
+  final recoveryCandidates =
+      Map<RecoveryIdentityCandidate, PendingRecoveryIdentity>.identity();
+  @override
+  Future<RecoveryIdentityCandidate> stageRecoveryIdentity(
+    SessionHandle session, {
+    required String companyId,
+    required String personId,
+    required String displayName,
+    required String rootFingerprint,
+    required String passphrase,
+  }) => stagePendingIdentity(
+    session,
+    companyId: companyId,
+    personId: personId,
+    displayName: displayName,
+    rootFingerprint: rootFingerprint,
+    passphrase: passphrase,
+  );
+  @override
+  Future<RecoveryIdentityCandidate> continueRecoveryIdentity(
+    SessionHandle session, {
+    required String companyId,
+    required String rootFingerprint,
+  }) => stageContinuation(session, companyId, rootFingerprint);
+  @override
+  Future<void> cancelRecoveryIdentity(
+    SessionHandle session,
+    RecoveryIdentityCandidate candidate,
+  ) => cancelPendingIdentity(session, candidate);
   final _live = Map<SessionHandle, _LocalSession>.identity();
   int _epoch = 0;
   static final _mutatingCatalogs = <String>{};
@@ -168,6 +205,7 @@ final class LocalIdentityService
         installationId: p.installationId,
         signingKeyId: p.signingKeyId,
         publicKey: Uint8List.fromList(p.publicKey),
+        authorizedCompanyIds: p.authorizedCompanyIds,
       ),
       clock.nowUtc(),
     );
@@ -294,6 +332,10 @@ final class LocalIdentityService
     if (!await keyService.verify(probe, signature, matches.single.publicKey)) {
       throw const CheckException(CheckError.recoveryRequired);
     }
-    return _issue(matches.single, epoch);
+    await resumeIdentityJournals(authenticatedPerson: personId);
+    final current = (await catalog.read()).singleWhere(
+      (p) => p.personId == personId,
+    );
+    return _issue(await _createdCompanyBindings(current), epoch);
   });
 }

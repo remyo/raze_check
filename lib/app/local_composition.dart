@@ -14,8 +14,11 @@ final class LocalComposition {
     required this.capture,
     required this.attendance,
     required this.archives,
+    required this.replacement,
+    required this.handover,
+    required this.history,
   });
-  final IdentityService identity;
+  final LocalIdentityService identity;
   final LocalCheckRepository repository;
   final VaultKeys vaultKeys;
   final ImmutableAttachmentStore attachments;
@@ -25,6 +28,9 @@ final class LocalComposition {
   final CaptureService capture;
   final AttendanceService attendance;
   final LocalArchiveService archives;
+  final DeviceReplacementService replacement;
+  final HandoverService handover;
+  final AuthorityHistoryService history;
 
   static Future<LocalComposition> open({
     AppPaths? paths,
@@ -57,8 +63,30 @@ final class LocalComposition {
         ids: SecureIds(),
       );
       await archives.resume();
+      await identity.resumeRecoveryIdentities();
       return LocalComposition._(
         archives: archives,
+        replacement: LocalDeviceReplacementService(
+          repository: repository,
+          identity: identity,
+          keys: keys,
+          clock: localClock,
+          ids: SecureIds(),
+        ),
+        handover: LocalHandoverService(
+          repository: repository,
+          identity: identity,
+          keys: keys,
+          clock: localClock,
+          ids: SecureIds(),
+          archives: archives,
+        ),
+        history: LocalAuthorityHistoryService(
+          repository: repository,
+          identity: identity,
+          keys: keys,
+          ids: SecureIds(),
+        ),
         identity: identity,
         companies: LocalCompanyService(
           repository: repository,

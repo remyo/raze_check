@@ -27,3 +27,12 @@ export 'src/attendance/message_import_sheet.dart';
 export 'src/attendance/message_qr.dart';
 export 'src/recovery/backup_screen.dart';
 export 'src/recovery/restore_review_screen.dart';
+
+export 'src/recovery/recovery_shared.dart';
+export 'src/recovery/handover_screen.dart';
+
+export 'src/recovery/replacement_request_screen.dart';
+export 'src/recovery/recovery_unlock_screen.dart';
+
+export 'src/recovery/authority_history_screen.dart';
+export 'src/recovery/recovery_workspace.dart';

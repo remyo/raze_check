@@ -19,3 +19,9 @@ export 'src/platform/document_port.dart';
 export 'src/platform/mobile_qr_port.dart';
 export 'src/platform/share_port.dart';
 export 'src/recovery/local_archive_service.dart';
+
+export 'src/recovery/local_authority_history.dart';
+
+export 'src/recovery/local_device_replacement_service.dart';
+
+export 'src/recovery/local_handover_service.dart';

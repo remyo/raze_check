@@ -52,6 +52,9 @@ final class ProfileCatalog {
               installationId: p['installationId'] as String,
               signingKeyId: p['signingKeyId'] as String,
               publicKey: base64Decode(p['publicKey'] as String),
+              authorizedCompanyIds: (p['authorizedCompanyIds'] as List?)
+                  ?.cast<String>()
+                  .toSet(),
             );
           })
           .toList(growable: false);
@@ -90,6 +93,7 @@ final class ProfileCatalog {
                     'installationId': p.installationId,
                     'signingKeyId': p.signingKeyId,
                     'publicKey': base64Encode(p.publicKey),
+                    'authorizedCompanyIds': p.authorizedCompanyIds?.toList(),
                   },
                 )
                 .toList(),

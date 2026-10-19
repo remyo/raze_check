@@ -5,6 +5,44 @@ import 'receipt_import_test.dart' show service;
 
 void main() {
   test(
+    'accept returns typed rejection for expired and restricted sessions',
+    () async {
+      final p = await TwoDeviceFixture.create();
+      addTearDown(p.dispose);
+      final message = await p.invitation();
+      final expired = p.staff.session;
+      p.staff.identity.lock();
+      expect(
+        (await service(p.staff).accept(expired, message) as Rejected).error,
+        CheckError.locked,
+      );
+      final operator =
+          (await p.manager.companies.createStaff(
+                    p.context('operator'),
+                    const StaffDraft(name: 'Reviewer'),
+                  )
+                  as Committed<StaffRecord>)
+              .value;
+      await p.manager.companies.activateOperator(
+        p.context('activate'),
+        operator.membershipId,
+        'a strong local passphrase',
+      );
+      final restricted = await p.manager.companies.unlockOperator(
+        p.companyId,
+        operator.membershipId,
+        'a strong local passphrase',
+      );
+      expect(
+        (await service(p.manager).accept(restricted, message) as Rejected)
+            .error,
+        CheckError.unauthorized,
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
+
+  test(
     'rejected correction preserves approved attendance and late ack never rolls back',
     () async {
       final p = await TwoDeviceFixture.create();

@@ -112,3 +112,92 @@ All logical rows, saved operation results, journals, associations, attachment re
 File contents use OS flush before publication. Directory rename/create durability is explicitly synchronized through POSIX `open(O_RDONLY)`, `fsync`, `close` (Android `libc.so`; iOS/macOS/Linux process libc). This is exercised on the development macOS host; Android/iOS runtime symbols, actual provider/storage/power-loss behavior and physical recovery remain Task 13 gates. Unsupported OS fails before lazy libc initialization. Null malloc, failed open or nonzero fsync is a storage failure; missing symbols/libraries are mapped to storage failure by the service. close runs in finally (its return is ignored), free always runs, and there is no errno retry or durability fallback. Ordinary rename or archive-package flush alone is not claimed durable.
 
 The encrypted private backup catalog is updated only after the new file is complete. Previous successful archive files are retained on failure. The UI shows the private location, **Created in this app**, and a separate user-confirmed external saved-copy state. Opening a share sheet is not external persistence. The archive passphrase is never saved. Internal archives do not survive uninstall.
+
+## Fresh installation activation
+
+Restore remains passive. Recovery creates an opaque, session-bound fresh key and
+new local passphrase verifier (PBKDF2-HMAC-SHA256, 600,000 iterations). It never
+imports an old device signing seed or unlock verifier. Pending original-person
+claims are absent from the ordinary profile catalog until exact authorization.
+Existing profile-ID collisions fail; unrelated profiles are not renamed or
+merged. Fresh adopted profiles carry explicit company installation bindings, so
+an A grant does not expose restored B history, exports, saved command replays or
+ownership. Original signed records and historical public installations survive.
+
+A staff target can bind its pending key to an authenticated personal preview's
+original person/company/root and full public history, without a setup pin or
+company journal operation. This supports restoration before or after setup while
+preserving original revision identities. Explicitly consented newer invitation
+history remains pending until grant acceptance. The live preview's manifest ID
+and exact manifest digest are bound to that candidate. Public identifiers,
+archive possession and staged lineage alone enable no ordinary access.
+
+Selected staff recovery export requires both `manageMemberships` and
+`exportAttendance`, plus the exact approved replacement request and returned
+grant. It uses the strict personal archive format and only explicitly associated
+records for the selected company/person/employee, exact received attendance and
+decision bytes, necessary public company/full lineage/credential dependencies,
+and passive public profile history. It contains no company root seeds, operator
+credentials or tombstones, another employee/company's data, or manager operation
+results/checkpoints. Conflicting newer credentials are never rolled back. Unsent
+records that management never received remain unavailable.
+
+Owner handover durably freezes the source before creating its final encrypted
+snapshot. The state is `active -> preparing -> offered -> retired`. The archive
+passphrase is transient. Preparing failures can be canceled or resumed with a
+newly entered passphrase; an issued offer retains the exact encrypted artifact
+and signed offer for resend. Missing acknowledgment or elapsed time never
+unfreezes an offered source. The target verifies the same original person, live
+pending key/request, root, complete lineage, exact source/child certificates and
+manifest digest before activating the root-authorized child. Its saved signed
+acknowledgment can be resent after unlocking the recovered profile.
+
+Lost-source recovery requires a live authenticated company preview with a
+scope-authorized portable root seed, matching original owner/root, and explicit
+confirmation of that exact checkpoint and missing unsynchronized records. It
+creates a fresh child generation. Old backups cannot overwrite an active newer
+generation. Independent sibling recoveries remain separate until encountered;
+then public history exchange quarantines the fork without choosing a winner.
+
+Activation uses an adapter-only checked transaction to replace current
+membership/authority as authorized, retain or derive old public owner credentials
+(including never-imported unsent receipts), record an exact identity activation
+receipt, and release only the selected passive scope. A locally encrypted identity
+journal binds fresh key/verifier/profile metadata to that receipt. Catalog and
+secure-store publication can resume after interruption; journals without an
+accepted receipt never publish a profile. This is local recovery machinery, not
+portable I/O state. Preview apply/discard is serialized; after application a
+failed later step requires reinspection/reconsent. Physical crash, provider and
+10,000-record acceptance remain Task 13 checks.
+
+An adopted profile may still create a genuinely new owned company. Creation
+atomically records a public local installation-binding receipt signed by that
+fresh installation key over the company/person/install/key, creation operation,
+digest and genesis generation under `RAZE_CHECK_LOCAL_COMPANY_BINDING_V1`.
+Catalog completion and unlock validate that proof plus exact creation provenance
+and the root-signed genesis before adding only that company to the installation
+binding. This local journal proof is not a new message kind or a general archive
+claim; unsigned public identifiers and another installation's creation history
+cannot expand the binding. A publication interruption resumes from the accepted
+creation receipt without authorizing any preexisting unrelated company.
+
+### Successive recovery of another company
+
+An already unlocked recovered person may explicitly continue recovery of company
+B with their current local installation/key. This is a distinct opaque pending
+continuation, bound to its live session/person/company/root/request and any
+consumed authenticated archive. It creates no new profile, passphrase or key.
+B requires its exact current replacement grant or same-person owner recovery
+proof; A access alone cannot authorize B. Accepted B receipts durably union only
+B into the current catalog bindings. Catalog interruption resumes after the next
+successful personal unlock; existing A and newly created C bindings remain.
+Unaccepted cancellation/restart cleanup never deletes reused credentials or
+existing vaults. Unrelated profile collisions still reject.
+
+Authenticated same-person passive public metadata merges only compatible
+installation-ID/public-key pairs and retains existing descriptive metadata.
+Exact duplicates are idempotent. A conflicting key for the same installation or
+other security-bearing conflict rejects atomically. Active display identity,
+unlock verifier, private keys and authorization are unaffected. This narrow
+public-history merge does not relax byte-exact business record/result/journal
+matching or any archive validation, passive gate or activation proof.

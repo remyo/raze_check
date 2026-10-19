@@ -41,3 +41,9 @@ export 'src/contracts/transfer_port.dart';
 export 'src/recovery/archive_models.dart';
 export 'src/recovery/backup_service.dart';
 export 'src/recovery/restore_service.dart';
+
+export 'src/recovery/authority_history.dart';
+
+export 'src/recovery/device_replacement_service.dart';
+
+export 'src/recovery/handover_service.dart';

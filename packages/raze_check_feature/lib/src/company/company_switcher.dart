@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:typed_data';
 import 'package:raze_check_core/raze_check_core.dart';
 import '../profile/profile_commands.dart';
 import '../enrollment/membership_status_screen.dart';
@@ -59,6 +60,7 @@ class CompanyWorkspace extends StatefulWidget {
     this.canCreateCompany = true,
     this.enrollment,
     this.messages,
+    this.pickHistory,
     this.capture,
     this.attendance,
     this.attendanceMessages,
@@ -66,6 +68,7 @@ class CompanyWorkspace extends StatefulWidget {
   final CompanyService companies;
   final EnrollmentService? enrollment;
   final EnrollmentMessagePort? messages;
+  final Future<Uint8List?> Function(TransferGuard)? pickHistory;
   final CaptureService? capture;
   final AttendanceService? attendance;
   final AttendanceMessagePort? attendanceMessages;
@@ -435,6 +438,7 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
           ),
           Expanded(
             child: EnrollmentWorkspace(
+              pickHistory: widget.pickHistory,
               key: ValueKey('enrollment-${_selected?.id}'),
               service: widget.enrollment!,
               session: widget.session,

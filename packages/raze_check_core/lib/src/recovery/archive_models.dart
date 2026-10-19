@@ -7,8 +7,9 @@ final class ArchiveDescriptor {
     required this.scope,
     required this.counts,
     this.externalCopyConfirmed = false,
+    this.manifestSha256Base64Url = '',
   });
-  final String artifactId;
+  final String artifactId, manifestSha256Base64Url;
   final int createdUtcMs;
   final ExportScope scope;
   final Map<String, int> counts;
@@ -28,8 +29,11 @@ final class RestorePreview {
     required this.conflicts,
     required this.stagingToken,
     required this.filesComplete,
+    this.manifestSha256Base64Url = '',
+    this.companyRootFingerprints = const {},
   });
-  final String manifestId, personId, stagingToken;
+  final Map<String, String> companyRootFingerprints;
+  final String manifestId, personId, stagingToken, manifestSha256Base64Url;
   final List<String> companyIds, conflicts;
   final Map<String, List<List<Object?>>> authorityHistory;
   final Map<String, int> counts;

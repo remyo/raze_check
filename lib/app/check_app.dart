@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:raze_check_core/raze_check_core.dart';
 import 'package:raze_check_feature/raze_check_feature.dart';
@@ -190,55 +191,132 @@ class _CheckAppState extends State<CheckApp> {
                                     return;
                                   }
                                   services.identity.requireActor(session);
+                                  Future<void> openBackup() async {
+                                    await Navigator.of(context).push<void>(
+                                      MaterialPageRoute(
+                                        builder: (routeContext) => BackupScreen(
+                                          identity: services.identity,
+                                          session: session,
+                                          backups: services.archives,
+                                          restores: services.archives,
+                                          companies: services.companies,
+                                          pickArchive: (guard) async {
+                                            await guard();
+                                            final file = await _documents.pick(
+                                              DocumentPurpose.archive,
+                                            );
+                                            if (file == null) return null;
+                                            try {
+                                              await guard();
+                                              return file.path;
+                                            } catch (_) {
+                                              await file.delete();
+                                              rethrow;
+                                            }
+                                          },
+                                          releaseArchive: (path) async {
+                                            await File(path).delete();
+                                          },
+                                          shareArchive: (bytes, guard) =>
+                                              _sharing.share(
+                                                bytes,
+                                                'backup.razecheck-backup',
+                                                'application/octet-stream',
+                                                guard: guard,
+                                                anchor: () {
+                                                  final box = routeContext
+                                                      .findRenderObject();
+                                                  if (box is! RenderBox ||
+                                                      !box.hasSize) {
+                                                    throw const TransferException(
+                                                      'Share position unavailable.',
+                                                    );
+                                                  }
+                                                  return box.localToGlobal(
+                                                        Offset.zero,
+                                                      ) &
+                                                      box.size;
+                                                },
+                                              ),
+                                        ),
+                                      ),
+                                    );
+                                  }
+
+                                  final files = RecoveryFiles(
+                                    pickBytes: (guard) async {
+                                      await guard();
+                                      final b = await _documents.pickMessage();
+                                      await guard();
+                                      return b;
+                                    },
+                                    pickArchive: (guard) async {
+                                      await guard();
+                                      final f = await _documents.pick(
+                                        DocumentPurpose.archive,
+                                      );
+                                      if (f == null) return null;
+                                      try {
+                                        await guard();
+                                        return f.path;
+                                      } catch (_) {
+                                        await f.delete();
+                                        rethrow;
+                                      }
+                                    },
+                                    releaseArchive: (path) async =>
+                                        File(path).delete(),
+                                    share: (bytes, name, guard) =>
+                                        _sharing.share(
+                                          bytes,
+                                          name,
+                                          'application/octet-stream',
+                                          guard: guard,
+                                          anchor: () {
+                                            final box = _navigator
+                                                .currentContext!
+                                                .findRenderObject();
+                                            if (box is! RenderBox ||
+                                                !box.hasSize) {
+                                              throw const TransferException(
+                                                'Share position unavailable.',
+                                              );
+                                            }
+                                            return box.localToGlobal(
+                                                  Offset.zero,
+                                                ) &
+                                                box.size;
+                                          },
+                                        ),
+                                  );
+                                  if (!context.mounted) return;
                                   await Navigator.of(context).push<void>(
                                     MaterialPageRoute(
-                                      builder: (routeContext) => BackupScreen(
+                                      builder: (_) => RecoveryWorkspace(
                                         identity: services.identity,
+                                        recoveryIdentity: services.identity,
                                         session: session,
-                                        backups: services.archives,
-                                        restores: services.archives,
                                         companies: services.companies,
-                                        pickArchive: (guard) async {
-                                          await guard();
-                                          final file = await _documents.pick(
-                                            DocumentPurpose.archive,
-                                          );
-                                          if (file == null) return null;
-                                          try {
-                                            await guard();
-                                            return file.path;
-                                          } catch (_) {
-                                            await file.delete();
-                                            rethrow;
-                                          }
-                                        },
-                                        releaseArchive: (path) async {
-                                          await File(path).delete();
-                                        },
-                                        shareArchive: (bytes, guard) =>
-                                            _sharing.share(
-                                              bytes,
-                                              'backup.razecheck-backup',
-                                              'application/octet-stream',
-                                              guard: guard,
-                                              anchor: () {
-                                                final box = routeContext
-                                                    .findRenderObject();
-                                                if (box is! RenderBox ||
-                                                    !box.hasSize) {
-                                                  throw const TransferException(
-                                                    'Share position unavailable.',
-                                                  );
-                                                }
-                                                return box.localToGlobal(
-                                                      Offset.zero,
-                                                    ) &
-                                                    box.size;
-                                              },
-                                            ),
+                                        enrollment: services.enrollment,
+                                        replacement: services.replacement,
+                                        handover: services.handover,
+                                        history: services.history,
+                                        backups: services.archives,
+                                        staffBackups: services.archives,
+                                        restores: services.archives,
+                                        files: files,
+                                        openBackup: openBackup,
                                       ),
                                     ),
                                   );
+                                },
+                          pickHistory: _composition == null
+                              ? null
+                              : (guard) async {
+                                  await guard();
+                                  final bytes = await _documents.pickMessage();
+                                  await guard();
+                                  return bytes;
                                 },
                           attendance: attendance.data,
                           capture: capture.data,
@@ -270,6 +348,7 @@ class _ProfileGate extends StatefulWidget {
     required this.identity,
     this.companies,
     this.onRecovery,
+    this.pickHistory,
     this.enrollment,
     this.messages,
     this.capture,
@@ -278,6 +357,7 @@ class _ProfileGate extends StatefulWidget {
   });
   final IdentityService identity;
   final Future<void> Function(SessionHandle)? onRecovery;
+  final Future<Uint8List?> Function(TransferGuard)? pickHistory;
   final CompanyService? companies;
   final EnrollmentService? enrollment;
   final EnrollmentMessagePort? messages;
@@ -389,8 +469,11 @@ class _ProfileGateState extends State<_ProfileGate>
           actions: [
             if (widget.onRecovery != null && _canCreateCompany)
               TextButton(
-                onPressed: () => widget.onRecovery!(_session!),
-                child: const Text('Backup'),
+                onPressed: () async {
+                  await widget.onRecovery!(_session!);
+                  _checkSession();
+                },
+                child: const Text('Backup / recovery'),
               ),
             TextButton(onPressed: _lock, child: const Text('Lock')),
           ],
@@ -404,6 +487,7 @@ class _ProfileGateState extends State<_ProfileGate>
                 attendance: widget.attendance,
                 attendanceMessages: widget.attendanceMessages,
                 messages: widget.messages,
+                pickHistory: widget.pickHistory,
                 session: _session!,
                 ids: SecureIds(),
                 onAuthorizedActivity: _checkSession,

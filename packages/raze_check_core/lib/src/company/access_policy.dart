@@ -37,6 +37,7 @@ final class AccessPolicy {
   }
 
   void requireMembership(ActorIdentity actor, Membership membership) {
+    actor.requireCompany(membership.companyId);
     if (actor.restrictedCompanyId != null &&
         actor.restrictedCompanyId != membership.companyId) {
       throw const CheckException(CheckError.wrongCompany);

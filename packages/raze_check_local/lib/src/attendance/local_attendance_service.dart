@@ -5,6 +5,7 @@ import 'package:raze_check_core/raze_check_core.dart';
 import '../security/local_key_service.dart';
 import '../security/secure_key_store.dart';
 import 'attendance_authorization.dart';
+import '../recovery/local_authority_history.dart';
 
 part 'local_receipt_import.dart';
 part 'local_attendance_review.dart';
@@ -98,6 +99,7 @@ final class LocalAttendanceService implements AttendanceService {
     ReadView view,
   ) async {
     final a = identity.requireActor(session);
+    a.requireCompany(companyId);
     if (a.restrictedCompanyId != null && a.restrictedCompanyId != companyId) {
       throw const CheckException(CheckError.wrongCompany);
     }
@@ -124,6 +126,7 @@ final class LocalAttendanceService implements AttendanceService {
         c.authoritySigningKeyId.isEmpty) {
       throw const CheckException(CheckError.recoveryRequired);
     }
+    await requireCurrentManagement(c, view);
     // The local signing reference must still belong to the certified installation.
     if (!await signing.verify(
       _bytes(['attendance-authority', c.id]),
@@ -541,13 +544,6 @@ final class _QueryView implements ReadView {
   @override
   Future<StoredRecord?> read(String id) => repository.read(companyId, id);
   @override
-  Future<List<StoredRecord>> list(String kind) async {
-    final s = await repository.snapshot(CompanyScope(companyId));
-    return [
-      ...s.records,
-      ...s.events,
-      ...s.authorityHistory,
-      ...s.outbox,
-    ].where((r) => r.kind == kind).toList();
-  }
+  Future<List<StoredRecord>> list(String kind) =>
+      RepositoryReadView(repository, companyId).list(kind);
 }

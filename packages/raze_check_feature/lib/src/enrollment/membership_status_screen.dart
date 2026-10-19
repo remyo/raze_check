@@ -54,6 +54,7 @@ class EnrollmentWorkspace extends StatefulWidget {
     required this.session,
     required this.ids,
     required this.messages,
+    this.pickHistory,
     this.company,
     this.canManage = false,
     this.owner = false,
@@ -65,6 +66,7 @@ class EnrollmentWorkspace extends StatefulWidget {
   final SessionHandle session;
   final IdGenerator ids;
   final EnrollmentMessagePort messages;
+  final Future<Uint8List?> Function(TransferGuard)? pickHistory;
   final Company? company;
   final bool canManage, owner;
   final List<StaffRecord> manualStaff;
@@ -78,6 +80,22 @@ class _EnrollmentWorkspaceState extends State<EnrollmentWorkspace> {
   String? _error, _fingerprint, _existingEmployeeId;
   SignedMessage? _invitation, _candidate, _pending, _grant;
   Uint8List? _candidateBytes;
+  InvitationCandidate? _rootCandidate;
+  void _cancelRoot() {
+    if (_rootCandidate != null && widget.service is InvitationHistoryService) {
+      (widget.service as InvitationHistoryService).cancelInvitation(
+        _rootCandidate!,
+      );
+    }
+    _rootCandidate = null;
+  }
+
+  @override
+  void dispose() {
+    _cancelRoot();
+    super.dispose();
+  }
+
   VerifiedMessage? _review;
   late String _operation = widget.ids.next();
   int _epoch = 0;
@@ -106,6 +124,7 @@ class _EnrollmentWorkspaceState extends State<EnrollmentWorkspace> {
     super.didUpdateWidget(old);
     if (!identical(old.session, widget.session) ||
         old.company?.id != widget.company?.id) {
+      _cancelRoot();
       _epoch++;
       _busy = false;
       _accepted = false;
@@ -197,6 +216,7 @@ class _EnrollmentWorkspaceState extends State<EnrollmentWorkspace> {
     );
     final fingerprint = await invitationRootFingerprint(candidate);
     if (!_current(epoch)) return;
+    _cancelRoot();
     setState(() {
       _candidate = candidate;
       _candidateBytes = Uint8List.fromList(bytes);
@@ -209,11 +229,27 @@ class _EnrollmentWorkspaceState extends State<EnrollmentWorkspace> {
     final bytes = _candidateBytes!,
         fingerprint = _fingerprint!,
         operation = _operation;
-    final invitation = await widget.service.acceptInvitation(
-      session,
-      bytes,
-      acceptedRootFingerprint: fingerprint,
-    );
+    final service = widget.service;
+    final VerifiedMessage invitation;
+    if (service is InvitationHistoryService) {
+      _rootCandidate ??= await (service as InvitationHistoryService)
+          .beginInvitation(
+            session,
+            bytes,
+            acceptedRootFingerprint: fingerprint,
+          );
+      invitation = await (service as InvitationHistoryService).finishInvitation(
+        session,
+        _rootCandidate!,
+      );
+      _rootCandidate = null;
+    } else {
+      invitation = await service.acceptInvitation(
+        session,
+        bytes,
+        acceptedRootFingerprint: fingerprint,
+      );
+    }
     if (!_current(epoch)) return;
     final join = await widget.service.requestJoin(
       session,
@@ -315,6 +351,34 @@ class _EnrollmentWorkspaceState extends State<EnrollmentWorkspace> {
             onChanged: _busy
                 ? null
                 : (value) => setState(() => _pending = value),
+          ),
+        if (_candidate != null &&
+            widget.pickHistory != null &&
+            widget.service is InvitationHistoryService)
+          TextButton(
+            onPressed: _busy || !_accepted
+                ? null
+                : () => _run((epoch, session) async {
+                    final service = widget.service as InvitationHistoryService;
+                    _rootCandidate ??= await (service).beginInvitation(
+                      session,
+                      _candidateBytes!,
+                      acceptedRootFingerprint: _fingerprint!,
+                    );
+                    final bytes = await widget.pickHistory!(
+                      _guard(epoch, session),
+                    );
+                    if (bytes == null) return;
+                    await _guard(epoch, session)();
+                    await (service).stageHistory(
+                      session,
+                      _rootCandidate!,
+                      bytes,
+                    );
+                  }),
+            child: const Text(
+              'Add missing public authority history from Files',
+            ),
           ),
         if (_candidate != null)
           JoinCompanyScreen(

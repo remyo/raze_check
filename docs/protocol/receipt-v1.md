@@ -234,3 +234,52 @@ all signature bytes, and reject wrong domains/types/company/root/issuer and
 borrowed staff identity. Tests also cover exact 1,500/1,501 and 65,536/65,537
 transport boundaries and complete file fallback. These fixtures and their
 computed sizes are not physical QR scan evidence.
+
+## Recovery and public authority continuity
+
+The registry remains the same eleven signed message kinds. A replacement request
+is self-signed proof of the proposed installation key only. Its person/employee
+IDs are claims. A staff grant must match the live pending request, original
+person, company, employee, fresh installation/public key and current membership
+revision. A null employee ID describes an owner target request; it grants no
+owner permission. Device handover preserves the same person and company owner.
+
+For `authorityTransfer` and `transferAck`, `snapshotManifestId` is the archive's
+`archiveId`. `snapshotSha256Base64Url` is padded base64url SHA-256 of the **exact
+authenticated `manifest.json` bytes**, binding every entry hash. It is not a hash
+of reconstructed JSON, a preview, or the encrypted file. A live authenticated
+preview retains this digest after the selected provider file is released.
+
+Missing ancestors travel separately in `.razecheck-history` Files documents:
+
+```text
+["RAZE_CHECK_AUTHORITY_HISTORY",1,companyId,rootFingerprint,certificates]
+```
+
+The array has exactly five fields. Company is UUIDv4; fingerprint is the full
+lowercase SHA-256 hex of an already explicitly trusted root. Certificates are
+1–128 existing exact seven-field root-signed arrays, in ancestor order. Each
+file is at most 65,536 bytes, checked before strict UTF-8/JSON decoding; nesting,
+scalar types, arity and certificate bounds are checked. No root key or private
+record is included. Later batches require the previously accepted predecessor.
+Exact known duplicates are idempotent. Every new parent must already be verified
+or occur earlier in the batch; sequence increments and creation times are
+monotonic. All signatures and conflicting definitions are checked.
+
+Ordinary history import requires an existing pin and atomically publishes only
+public lineage and explicit associations. It never grants membership, changes
+capabilities, selects an active manager head, or revives a key. Authenticated fork
+evidence is quarantined separately and blocks mutations pending reconciliation.
+A root secret cannot reconstruct missing historical certificates or receipts.
+
+New enrollment may stage bounded history only inside a live explicit invitation
+consent, tied to its exact invitation, company, fingerprint and personal session.
+Completion verifies the original invitation and publishes pin/history atomically.
+Recovery uses a corresponding pending-only invitation or authenticated personal
+archive context; it publishes trust only with exact replacement authorization.
+Lock, cancellation, profile switch, expiry and restart invalidate live consent.
+Verified ordinary business transitions can advance a staff installation's remote
+issuer knowledge along accepted lineage; immutable historical credentials and a
+shared manager Company's signing/provenance remain intact. A locally known stale
+manager or fork requires reconciliation. Offline devices cannot know an unseen
+global latest generation.

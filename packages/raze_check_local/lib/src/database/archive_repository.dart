@@ -374,7 +374,57 @@ extension ArchiveRepository on LocalCheckRepository {
               sealed: old.read<Uint8List>('body'),
             );
             if (!_sameBytes(existing, bytes)) {
-              throw const CheckException(CheckError.duplicateConflict);
+              final prior =
+                  jsonDecode(utf8.decode(existing)) as Map<String, dynamic>;
+              if (prior['version'] != p['version'] ||
+                  prior['personId'] != person ||
+                  prior.keys.toSet().difference({
+                    'version',
+                    'personId',
+                    'displayName',
+                    'installations',
+                  }).isNotEmpty ||
+                  p.keys.toSet().difference({
+                    'version',
+                    'personId',
+                    'displayName',
+                    'installations',
+                  }).isNotEmpty) {
+                throw const CheckException(CheckError.duplicateConflict);
+              }
+              final installations = <String, List<Object?>>{};
+              for (final entry in [
+                ...prior['installations'] as List,
+                ...p['installations'] as List,
+              ]) {
+                final pair = List<Object?>.from(entry as List);
+                final old = installations[pair[0]];
+                if (old != null && old[1] != pair[1]) {
+                  throw const CheckException(CheckError.duplicateConflict);
+                }
+                installations[pair[0] as String] = pair;
+              }
+              final merged = Uint8List.fromList(
+                utf8.encode(
+                  jsonEncode({
+                    ...prior,
+                    'installations': installations.values.toList(),
+                  }),
+                ),
+              );
+              if (merged.length > 64 * 1024 * 1024) {
+                throw const CheckException(CheckError.limitExceeded);
+              }
+              final sealed = await _payloadCipher.seal(
+                scopeId: person,
+                recordId: 'passive-profile',
+                revision: 1,
+                plain: merged,
+              );
+              await _db.customStatement(
+                'UPDATE restored_profiles SET body=? WHERE person_id=?',
+                [sealed, person],
+              );
             }
           }
         }
