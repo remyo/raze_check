@@ -685,6 +685,173 @@ final class LocalEnrollmentService implements EnrollmentService {
     );
   }
 
+  // This plan is built during transaction authorization for fresh commands
+  // and replays. Only immutable row data leaves the scoped ReadView callback.
+  Future<Mutation> _grantMutation(
+    ReadView view,
+    ActorIdentity actor,
+    SignedMessage message,
+    Map<String, dynamic> pin,
+    MessagePayload request,
+  ) async {
+    final p = message.payload;
+    final authority = AuthorityCertificate(p.field<List<Object?>>('authority'));
+    final member = Membership(
+      id: p.field<String>('membershipId'),
+      companyId: p.companyId,
+      personId: actor.personId,
+      employeeId: p.field<String>('employeeId'),
+      owner: false,
+      active: true,
+      capabilities: {},
+      revision: p.field<int>('membershipRevision'),
+    );
+    final company = Company(
+      id: p.companyId,
+      name: p.field<String>('companyLabel'),
+      timeZoneId: p.field<String>('timeZoneId'),
+      workplaceId: p.field<String>('workplaceId'),
+      authorityGenerationId: authority.generationId,
+      authoritySigningKeyId: '',
+      rootPublicKey: pin['rootPublicKey'] as String,
+      rootFingerprint: pin['rootFingerprint'] as String,
+      authority: authority.values,
+      creationPersonId: '',
+      creationOperationId: '',
+      creationDigest: '',
+    );
+    final memberRow = _row(
+      p.companyId,
+      member.id,
+      'membership',
+      member.toJson(),
+      member.revision,
+    );
+    final staff = StaffRecord(
+      employeeId: member.employeeId,
+      companyId: p.companyId,
+      personId: actor.personId,
+      membershipId: member.id,
+      details: StaffDraft(name: request.field<String>('displayName')),
+      revision: 1,
+    );
+
+    final records = <StoredRecord>[];
+    final historyRows = <StoredRecord>[];
+    final events = <StoredRecord>[];
+    Future<StoredRecord> reuse(
+      StoredRecord candidate,
+      List<StoredRecord> additions, {
+      void Function(StoredRecord)? validate,
+    }) async {
+      final stored = await view.read(candidate.id);
+      if (stored == null) {
+        additions.add(candidate);
+        return candidate;
+      }
+      if (stored.kind != candidate.kind) {
+        throw const CheckException(CheckError.duplicateConflict);
+      }
+      if (validate != null) {
+        validate(stored);
+      } else if (stored.revision != candidate.revision ||
+          !_sameJson(
+            jsonDecode(utf8.decode(stored.payload)),
+            jsonDecode(utf8.decode(candidate.payload)),
+          )) {
+        throw const CheckException(CheckError.duplicateConflict);
+      }
+      return stored;
+    }
+
+    final retainedMember = await reuse(memberRow, records);
+    final retainedCompany = await reuse(
+      _row(p.companyId, company.id, 'company', company.toJson()),
+      records,
+      validate: (stored) {
+        final existing = Company.fromJson(_json(stored));
+        if (existing.id != company.id ||
+            existing.rootPublicKey != company.rootPublicKey ||
+            existing.rootFingerprint != company.rootFingerprint ||
+            existing.authorityGenerationId != company.authorityGenerationId ||
+            !_sameJson(existing.authority, company.authority) ||
+            existing.name != company.name ||
+            existing.timeZoneId != company.timeZoneId ||
+            existing.workplaceId != company.workplaceId) {
+          throw const CheckException(CheckError.recoveryRequired);
+        }
+        // Keep the local issuer key reference and creation provenance intact.
+      },
+    );
+    final retainedStaff = await reuse(
+      _row(p.companyId, staff.employeeId, 'staff', staff.toJson()),
+      records,
+      validate: (stored) {
+        final existing = StaffRecord.fromJson(_json(stored));
+        if (existing.employeeId != staff.employeeId ||
+            existing.companyId != staff.companyId ||
+            existing.personId != staff.personId ||
+            existing.membershipId != staff.membershipId ||
+            existing.revision != stored.revision) {
+          throw const CheckException(CheckError.invalidTransition);
+        }
+        // Manual record details/revisions are management data, not join input.
+      },
+    );
+    final retainedCredential = await reuse(_credentialRow(message), records);
+    final retainedIndex = await reuse(
+      _row(p.companyId, 'member-index:${actor.personId}', 'membershipIndex', {
+        'membershipId': member.id,
+      }),
+      records,
+    );
+    final retainedGrant = await reuse(
+      _messageRow(message, 'accepted-grant:${p.messageId}', 'membershipGrant'),
+      events,
+    );
+    final retainedAuthority = await reuse(
+      _row(p.companyId, authority.generationId, 'authority', authority.values),
+      historyRows,
+    );
+    return Mutation(
+      records,
+      events,
+      [],
+      retainedMember,
+      authorityHistory: historyRows,
+      personalRecords: [
+        for (final row in [
+          retainedMember,
+          retainedCompany,
+          retainedStaff,
+          retainedCredential,
+          retainedIndex,
+          retainedGrant,
+          retainedAuthority,
+        ])
+          PersonalRecordAssociation(actor.personId, row.id),
+      ],
+      personalOperationOwners: {actor.personId},
+    );
+  }
+
+  static bool _sameJson(Object? a, Object? b) {
+    if (a is Map && b is Map) {
+      return a.length == b.length &&
+          a.keys.every(
+            (key) => b.containsKey(key) && _sameJson(a[key], b[key]),
+          );
+    }
+    if (a is List && b is List) {
+      return a.length == b.length &&
+          List.generate(
+            a.length,
+            (i) => _sameJson(a[i], b[i]),
+          ).every((equal) => equal);
+    }
+    return a.runtimeType == b.runtimeType && a == b;
+  }
+
   @override
   Future<CommandResult<Membership>> acceptGrant(
     SessionHandle session,
@@ -708,6 +875,7 @@ final class LocalEnrollmentService implements EnrollmentService {
         authorityGenerationId: authority.generationId,
       );
       late Map<String, dynamic> pin;
+      late Mutation mutation;
       return _commit(
         context,
         [
@@ -715,86 +883,7 @@ final class LocalEnrollmentService implements EnrollmentService {
           actor.personId,
           base64UrlEncode(codec.encode(message)),
         ],
-        (view) async {
-          final member = Membership(
-            id: p.field<String>('membershipId'),
-            companyId: p.companyId,
-            personId: actor.personId,
-            employeeId: p.field<String>('employeeId'),
-            owner: false,
-            active: true,
-            capabilities: {},
-            revision: p.field<int>('membershipRevision'),
-          );
-          final pending = (await view.read(
-            'pending-join:${p.field<String>('joinOrReplacementRequestId')}',
-          ))!;
-          final request = _decode(pending).payload;
-          final company = Company(
-            id: p.companyId,
-            name: p.field<String>('companyLabel'),
-            timeZoneId: p.field<String>('timeZoneId'),
-            workplaceId: p.field<String>('workplaceId'),
-            authorityGenerationId: authority.generationId,
-            authoritySigningKeyId: '',
-            rootPublicKey: pin['rootPublicKey'] as String,
-            rootFingerprint: pin['rootFingerprint'] as String,
-            authority: authority.values,
-            creationPersonId: '',
-            creationOperationId: '',
-            creationDigest: '',
-          );
-          final memberRow = _row(
-            p.companyId,
-            member.id,
-            'membership',
-            member.toJson(),
-            member.revision,
-          );
-          final staff = StaffRecord(
-            employeeId: member.employeeId,
-            companyId: p.companyId,
-            personId: actor.personId,
-            membershipId: member.id,
-            details: StaffDraft(name: request.field<String>('displayName')),
-            revision: 1,
-          );
-          final records = [
-            memberRow,
-            _row(p.companyId, company.id, 'company', company.toJson()),
-            _row(p.companyId, staff.employeeId, 'staff', staff.toJson()),
-            _credentialRow(message),
-            _row(
-              p.companyId,
-              'member-index:${actor.personId}',
-              'membershipIndex',
-              {'membershipId': member.id},
-            ),
-          ];
-          final event = _messageRow(
-            message,
-            'accepted-grant:${p.messageId}',
-            'membershipGrant',
-          );
-          final history = _row(
-            p.companyId,
-            authority.generationId,
-            'authority',
-            authority.values,
-          );
-          return Mutation(
-            records,
-            [event],
-            [],
-            memberRow,
-            authorityHistory: [history],
-            personalRecords: [
-              for (final r in [...records, event, history])
-                PersonalRecordAssociation(actor.personId, r.id),
-            ],
-            personalOperationOwners: {actor.personId},
-          );
-        },
+        (_) async => mutation,
         (view) async {
           _personal(session);
           final pinRow = await view.read('enrollment-trust:${actor.personId}');
@@ -843,6 +932,7 @@ final class LocalEnrollmentService implements EnrollmentService {
               throw const CheckException(CheckError.invalidTransition);
             }
           }
+          mutation = await _grantMutation(view, actor, message, pin, request);
         },
         (r) => Membership.fromJson(_json(r)),
       );
