@@ -87,9 +87,10 @@ not choose the company time zone.
 
 Every payload starts with `[companyId, messageId, issuedAtUtcMs]`. Every field
 below follows that prefix, in the stated order. Everything is a string except
-explicit integers, nullable IDs and fixed authority arrays. Hashes/keys are
+explicit integers, nullable IDs/outcomes and fixed authority arrays. Hashes/keys are
 base64url strings of the fixed byte lengths above. `kind`, `proposedKind` and
-`effectiveKind` are `checkIn` or `checkOut`; outcome is `approved` or `rejected`;
+`effectiveKind` are `checkIn` or `checkOut`; attendance outcome is `pending`, `approved` or `rejected`;
+correction outcome is independently `approved` or `rejected` when present;
 evidence is exactly `staticQr`.
 
 | Kind | Fields after common prefix |
@@ -100,7 +101,7 @@ evidence is exactly `staticQr`.
 | `workplace` | workplaceId, codeId, authority |
 | `attendance` | personId, employeeId, membershipId, membershipRevision (integer), installationId, kind, claimedUtcMs (integer), offsetMinutes (integer), workplaceId, codeId, membershipAuthorityGenerationId, evidence |
 | `receiptAck` | eventId, eventPayloadSha256Base64Url, receivedUtcMs (integer), authority |
-| `attendanceDecision` | eventId, eventPayloadSha256Base64Url, decisionId, decisionRevision (integer), outcome, reason, correctionIdOrNull, effectiveKind, effectiveUtcMs (integer), effectiveOffsetMinutes (integer), actorPersonId, authority |
+| `attendanceDecision` | eventId, eventPayloadSha256Base64Url, decisionId, decisionRevision (integer), outcome, reason, correctionIdOrNull, correctionRequestIdOrNull, correctionOutcomeOrNull, effectiveKind, effectiveUtcMs (integer), effectiveOffsetMinutes (integer), actorPersonId, authority |
 | `correctionRequest` | employeeId, eventId, proposedKind, proposedUtcMs (integer), proposedOffsetMinutes (integer), reason |
 | `replacementRequest` | personId, employeeIdOrNull, newInstallationId, newPublicKeyBase64Url |
 | `authorityTransfer` | targetReplacementRequestId, snapshotManifestId, snapshotSha256Base64Url, nextAuthority, sourceAuthority |
@@ -109,12 +110,41 @@ evidence is exactly `staticQr`.
 `messageId` is the event ID for attendance messages. Hashes identify the exact
 original event payload or snapshot bytes, not a reserialized object.
 `actorPersonId` attributes a decision but does not substitute an operator key
-for the company issuer key. A decision with no correction repeats the original
-effective fields. A resolved correction creates a new decision revision and
-correction ID while retaining all prior history. Attendance/review services
-must check those cross-record relationships, request references, revisions,
-event hashes and permissions transactionally; the codec/verifier cannot infer
-them from a single message. No v1 field asserts verified location.
+for the company issuer key. Every decision is a self-contained latest attendance
+projection; later review decisions repeat the **current** effective fields,
+including earlier approved corrections. Only explicit attendance review changes
+`outcome`. Approving a correction changes effective fields; denying it preserves
+them. Both preserve current attendance review status.
+
+The unreleased v1 amendment retains the eleven kinds, envelope and signing domain
+and adds the two independent correction fields in the exact registry order above.
+Conditional shape is strict:
+
+- No correction ID: request ID and correction outcome are null; attendance
+  outcome is approved/rejected.
+- Direct manager correction: correction ID present, request ID null, correction
+  outcome approved. Attendance may remain pending, approved or rejected.
+- Staff request resolution: correction ID and original correctionRequest.messageId
+  present; correction outcome approved/rejected independently of attendance.
+
+A pending attendance outcome is valid only in a correction snapshot. A correction
+ID is an immutable correction identity; it is distinct from request identity.
+Original event payload bytes and all decision/correction history are retained.
+Services authenticate company, issuer history, event ID and exact payload hash,
+correlate request IDs and detect conflicting revisions transactionally. An older
+authenticated resolution may fill request history but cannot roll back the latest
+projection. Equal/no-op effective fields and absent local requests never imply a
+correction outcome. Receipt acknowledgments update delivery only; decisions do
+not imply receipt acknowledgment, and rejected attendance does not undo delivery.
+Unknown/new authority requires accepting its valid history before applying updates.
+
+Manager-entered manual attendance is an immutable local domain event with employee,
+actor, reason and source `manual`, initially pending. Its local decisions hash its
+exact local original bytes and have no wire return message. Return updates require
+an existing authenticated staff receipt; neither acknowledgment nor decision can
+create unknown/manual attendance or infer its subject. Manual employee linkage
+transfers only that employee's personal history associations without rewriting
+original event or audit bytes. No v1 field asserts verified location.
 
 ## Authority and trust
 

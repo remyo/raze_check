@@ -12,6 +12,7 @@ final class LocalComposition {
     required this.companies,
     required this.enrollment,
     required this.capture,
+    required this.attendance,
   });
   final IdentityService identity;
   final LocalCheckRepository repository;
@@ -21,6 +22,7 @@ final class LocalComposition {
   final CompanyService companies;
   final EnrollmentService enrollment;
   final CaptureService capture;
+  final AttendanceService attendance;
 
   static Future<LocalComposition> open({
     AppPaths? paths,
@@ -54,6 +56,13 @@ final class LocalComposition {
           ids: SecureIds(),
         ),
         enrollment: LocalEnrollmentService(
+          repository: repository,
+          identity: identity,
+          keys: keys,
+          clock: localClock,
+          ids: SecureIds(),
+        ),
+        attendance: LocalAttendanceService(
           repository: repository,
           identity: identity,
           keys: keys,

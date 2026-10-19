@@ -591,6 +591,29 @@ final class LocalEnrollmentService implements EnrollmentService {
             staff.revision,
           );
           final credential = _credentialRow(grant);
+          // Only explicit employee linkage transfers manual attendance ownership.
+          // Original actor/person/event bytes remain immutable historical evidence.
+          final manualHistory = <StoredRecord>[];
+          if (manual != null) {
+            final manualIds = (await view.list('manualAttendance'))
+                .where((r) => _json(r)['employeeId'] == manual!.employeeId)
+                .map((r) => r.id)
+                .toSet();
+            for (final kind in [
+              'manualAttendance',
+              'attendanceState',
+              'attendanceDecisionRecord',
+              'correctionResolution',
+            ]) {
+              for (final r in await view.list(kind)) {
+                final data = _json(r);
+                if (data['employeeId'] == manual.employeeId &&
+                    manualIds.contains(data['eventId'])) {
+                  manualHistory.add(r);
+                }
+              }
+            }
+          }
           return Mutation(
             [
               membership,
@@ -626,12 +649,16 @@ final class LocalEnrollmentService implements EnrollmentService {
               if (manual != null) ...[
                 PersonalRecordAssociation(manual.personId, manual.employeeId),
                 PersonalRecordAssociation(manual.personId, manual.membershipId),
+                for (final r in manualHistory)
+                  PersonalRecordAssociation(manual.personId, r.id),
               ],
             ],
             personalRecords: [
               PersonalRecordAssociation(person, member.id),
               PersonalRecordAssociation(person, employee.id),
               PersonalRecordAssociation(person, credential.id),
+              for (final r in manualHistory)
+                PersonalRecordAssociation(person, r.id),
             ],
           );
         },

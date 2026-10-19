@@ -7,6 +7,7 @@ import '../team/staff_detail_screen.dart';
 import '../team/staff_list_screen.dart';
 import 'company_setup_screen.dart';
 import '../attendance/capture_screen.dart';
+import '../attendance/review_queue_screen.dart';
 
 class CompanySwitcher extends StatelessWidget {
   const CompanySwitcher({
@@ -59,12 +60,14 @@ class CompanyWorkspace extends StatefulWidget {
     this.enrollment,
     this.messages,
     this.capture,
+    this.attendance,
     this.attendanceMessages,
   });
   final CompanyService companies;
   final EnrollmentService? enrollment;
   final EnrollmentMessagePort? messages;
   final CaptureService? capture;
+  final AttendanceService? attendance;
   final AttendanceMessagePort? attendanceMessages;
   final bool canCreateCompany;
   final SessionHandle session;
@@ -88,7 +91,7 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
       _operator = false;
   StaffRecord? _editing;
   String? _error;
-  bool _enrolling = false, _capturing = false;
+  bool _enrolling = false, _capturing = false, _reviewing = false;
   int _generation = 0;
   late String _operation;
   @override
@@ -105,6 +108,7 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
       _generation++;
       _enrolling = false;
       _capturing = false;
+      _reviewing = false;
       _selected = null;
       _draft = false;
       _setup = false;
@@ -212,6 +216,7 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
       _generation++;
       _enrolling = false;
       _capturing = false;
+      _reviewing = false;
       _selected = company;
       _draft = false;
       _setup = false;
@@ -227,6 +232,7 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
   void _newDraft({StaffRecord? staff, bool setup = false}) => setState(() {
     _operation = widget.ids.next();
     _capturing = false;
+    _reviewing = false;
     _enrolling = false;
     _setup = setup;
     _draft = !setup;
@@ -301,11 +307,21 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
 
   void _openEnrollment() => setState(() {
     _capturing = false;
+    _reviewing = false;
     _enrolling = true;
   });
   @override
   Widget build(BuildContext context) => Column(
     children: [
+      if (widget.attendance != null && _selected != null)
+        TextButton(
+          onPressed: () => setState(() {
+            _capturing = false;
+            _enrolling = false;
+            _reviewing = true;
+          }),
+          child: const Text('Review and attendance history'),
+        ),
       if (widget.capture != null &&
           _selected != null &&
           widget.canCreateCompany)
@@ -313,6 +329,7 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
           onPressed: () => setState(() {
             _enrolling = false;
             _capturing = true;
+            _reviewing = false;
           }),
           child: const Text('Attendance and receipts'),
         ),
@@ -353,6 +370,36 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
   );
   Widget _body() {
     if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_reviewing && widget.attendance != null && _selected != null) {
+      return Column(
+        children: [
+          TextButton(
+            onPressed: () => setState(() => _reviewing = false),
+            child: const Text('Back to company'),
+          ),
+          Expanded(
+            child: ReviewWorkspace(
+              key: ValueKey('review-${_selected!.id}'),
+              service: widget.attendance!,
+              session: widget.session,
+              company: _selected!,
+              ids: widget.ids,
+              messages: widget.attendanceMessages,
+              canManage:
+                  _membership != null &&
+                  (_owner || !widget.canCreateCompany) &&
+                  AccessPolicy.eligible(
+                    _membership!,
+                    Capability.reviewAttendance,
+                  ),
+              staff: _staff,
+              onChanged: widget.onAuthorizedActivity,
+              onLocked: widget.onLocked,
+            ),
+          ),
+        ],
+      );
+    }
     if (_capturing && widget.capture != null && _selected != null) {
       return Column(
         children: [

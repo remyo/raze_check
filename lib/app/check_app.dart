@@ -13,6 +13,7 @@ class CheckApp extends StatefulWidget {
     this.enrollment,
     this.messages,
     this.capture,
+    this.attendance,
     this.attendanceMessages,
   });
   final Future<IdentityService>? identity;
@@ -20,6 +21,7 @@ class CheckApp extends StatefulWidget {
   final Future<EnrollmentService>? enrollment;
   final EnrollmentMessagePort? messages;
   final Future<CaptureService>? capture;
+  final Future<AttendanceService>? attendance;
   final AttendanceMessagePort? attendanceMessages;
   @override
   State<CheckApp> createState() => _CheckAppState();
@@ -46,6 +48,10 @@ class _CheckAppState extends State<CheckApp> {
       widget.capture ??
       (_composition?.then((services) => services.capture) ??
           Future.value(null));
+
+  late final Future<AttendanceService?> _attendance =
+      widget.attendance ??
+      (_composition?.then((s) => s.attendance) ?? Future.value(null));
 
   @override
   void dispose() {
@@ -142,13 +148,32 @@ class _CheckAppState extends State<CheckApp> {
                         body: Center(child: CircularProgressIndicator()),
                       );
                     }
-                    return _ProfileGate(
-                      capture: capture.data,
-                      attendanceMessages: widget.attendanceMessages,
-                      identity: snapshot.data!,
-                      companies: companies.data,
-                      enrollment: enrollment.data,
-                      messages: widget.messages,
+                    return FutureBuilder<AttendanceService?>(
+                      future: _attendance,
+                      builder: (context, attendance) {
+                        if (attendance.hasError) {
+                          return const Scaffold(
+                            body: Center(
+                              child: Text('Could not open review storage.'),
+                            ),
+                          );
+                        }
+                        if (attendance.connectionState !=
+                            ConnectionState.done) {
+                          return const Scaffold(
+                            body: Center(child: CircularProgressIndicator()),
+                          );
+                        }
+                        return _ProfileGate(
+                          attendance: attendance.data,
+                          capture: capture.data,
+                          attendanceMessages: widget.attendanceMessages,
+                          identity: snapshot.data!,
+                          companies: companies.data,
+                          enrollment: enrollment.data,
+                          messages: widget.messages,
+                        );
+                      },
                     );
                   },
                 );
@@ -168,6 +193,7 @@ class _ProfileGate extends StatefulWidget {
     this.enrollment,
     this.messages,
     this.capture,
+    this.attendance,
     this.attendanceMessages,
   });
   final IdentityService identity;
@@ -175,6 +201,7 @@ class _ProfileGate extends StatefulWidget {
   final EnrollmentService? enrollment;
   final EnrollmentMessagePort? messages;
   final CaptureService? capture;
+  final AttendanceService? attendance;
   final AttendanceMessagePort? attendanceMessages;
   @override
   State<_ProfileGate> createState() => _ProfileGateState();
@@ -286,6 +313,7 @@ class _ProfileGateState extends State<_ProfileGate>
                 companies: widget.companies!,
                 enrollment: widget.enrollment,
                 capture: widget.capture,
+                attendance: widget.attendance,
                 attendanceMessages: widget.attendanceMessages,
                 messages: widget.messages,
                 session: _session!,

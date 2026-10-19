@@ -32,6 +32,17 @@ final class MessagePayload {
     for (var i = 0; i < fields.length; i++) {
       fields[i].validate(values[i]);
     }
+    if (kind == MessageKind.attendanceDecision) {
+      final correction = values[9], request = values[10], result = values[11];
+      requireMessage(
+        correction != null ||
+            (request == null && result == null && values[7] != 'pending'),
+      );
+      requireMessage(
+        correction == null ||
+            (result != null && (request != null || result == 'approved')),
+      );
+    }
     return MessagePayload._(
       kind,
       List<Object?>.unmodifiable(values.map(_freeze)),
@@ -219,6 +230,12 @@ void _zone(Object? v) {
 void _key(Object? v) => decodeMessageBase64(v, byteLength: 32);
 void _signature(Object? v) => decodeMessageBase64(v, byteLength: 64);
 void _kind(Object? v) => requireMessage(v == 'checkIn' || v == 'checkOut');
+void _reviewOutcome(Object? v) =>
+    requireMessage(v == 'pending' || v == 'approved' || v == 'rejected');
+void _optionalOutcome(Object? v) {
+  if (v != null) _outcome(v);
+}
+
 void _outcome(Object? v) => requireMessage(v == 'approved' || v == 'rejected');
 void _evidence(Object? v) => requireMessage(v == 'staticQr');
 void _optionalId(Object? v) {
@@ -317,9 +334,11 @@ const _registry = <MessageKind, List<_Field>>{
     _Field('eventPayloadSha256Base64Url', _key),
     _Field('decisionId', _id),
     _Field('decisionRevision', _positive),
-    _Field('outcome', _outcome),
+    _Field('outcome', _reviewOutcome),
     _Field('reason', _reason),
     _Field('correctionIdOrNull', _optionalId),
+    _Field('correctionRequestIdOrNull', _optionalId),
+    _Field('correctionOutcomeOrNull', _optionalOutcome),
     _Field('effectiveKind', _kind),
     _Field('effectiveUtcMs', _utc),
     _Field('effectiveOffsetMinutes', _offset),

@@ -17,3 +17,7 @@ export 'src/enrollment/join_review_screen.dart';
 export 'src/attendance/capture_screen.dart';
 export 'src/attendance/receipt_screen.dart';
 export 'src/attendance/receipt_outbox_screen.dart';
+export 'src/attendance/review_queue_screen.dart';
+export 'src/attendance/attendance_detail_screen.dart';
+export 'src/attendance/manual_entry_screen.dart';
+export 'src/attendance/correction_request_screen.dart';

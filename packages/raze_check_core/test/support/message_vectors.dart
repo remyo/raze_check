@@ -199,6 +199,8 @@ final class MessageVectors {
           'approved',
           'Correct missed check-in',
           null,
+          null,
+          null,
           'checkIn',
           timestamp,
           540,
@@ -326,6 +328,11 @@ final class MessageVectors {
       if (name == 'membershipRevision' || name == 'decisionRevision') {
         changed[i] = 2;
       }
+      if (message.kind == MessageKind.attendanceDecision && i >= 9 && i <= 11) {
+        changed[9] = id(90);
+        changed[10] = i == 10 ? id(91) : null;
+        changed[11] = 'approved';
+      }
       yield SignedMessage(
         kind: message.kind,
         keyId: message.keyId,
@@ -367,9 +374,11 @@ final class MessageVectors {
         p[7] = 'rejected';
         p[8] = '\u0000' * 500;
         p[9] = id(90);
-        p[10] = 'checkOut';
-        p[11] = -8640000000000000;
-        p[12] = -840;
+        p[10] = id(91);
+        p[11] = 'rejected';
+        p[12] = 'checkOut';
+        p[13] = -8640000000000000;
+        p[14] = -840;
       case MessageKind.correctionRequest:
         p[5] = 'checkOut';
         p[6] = -8640000000000000;

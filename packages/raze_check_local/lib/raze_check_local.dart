@@ -14,3 +14,4 @@ export 'src/files/immutable_attachment_store.dart';
 export 'src/company/local_company_service.dart';
 export 'src/company/local_enrollment_service.dart';
 export 'src/attendance/local_capture_service.dart';
+export 'src/attendance/local_attendance_service.dart';
