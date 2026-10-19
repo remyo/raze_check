@@ -102,7 +102,7 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
   bool get _canManage =>
       _membership != null &&
       (_membership!.owner || !widget.canCreateCompany) &&
-      AccessPolicyCan.can(_membership!, Capability.manageStaff);
+      AccessPolicy.eligible(_membership!, Capability.manageStaff);
   bool get _owner => _membership?.owner == true;
   void _failure(Object error) {
     if (!mounted) return;
@@ -151,7 +151,7 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
       final canManage =
           member != null &&
           (member.owner || !widget.canCreateCompany) &&
-          AccessPolicyCan.can(member, Capability.manageStaff);
+          AccessPolicy.eligible(member, Capability.manageStaff);
       final staff = canManage
           ? await widget.companies.listStaff(widget.session, company.id)
           : <StaffRecord>[];
@@ -426,13 +426,4 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
       onAdd: () => _newDraft(),
     );
   }
-}
-
-/// UI visibility helper only; CompanyService remains the authorization boundary.
-abstract final class AccessPolicyCan {
-  static bool can(Membership member, Capability cap) =>
-      member.active &&
-      (member.owner ||
-          (!AccessPolicy.ownerOnly.contains(cap) &&
-              member.capabilities.contains(cap)));
 }

@@ -13,11 +13,15 @@ final class AccessPolicy {
     Capability.backupCompany,
     Capability.recoverCompany,
   };
-  bool can(Membership membership, Capability capability) =>
+
+  /// Stored eligibility only; session-mode and actor checks belong in require.
+  static bool eligible(Membership membership, Capability capability) =>
       membership.active &&
       (membership.owner ||
           (!ownerOnly.contains(capability) &&
               membership.capabilities.contains(capability)));
+  bool can(Membership membership, Capability capability) =>
+      eligible(membership, capability);
   ActorIdentity require(
     SessionHandle session,
     Membership membership,

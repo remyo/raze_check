@@ -10,6 +10,7 @@ import 'package:raze_check_local/raze_check_local.dart';
 import 'package:raze_check_local/src/database/check_database.dart'
     show CheckDatabase;
 import 'support/repository_fixture.dart';
+import 'support/check_matchers.dart';
 
 void main() {
   late RepositoryFixture fixture;
@@ -18,6 +19,80 @@ void main() {
   });
   tearDown(() => fixture.dispose());
 
+  test(
+    'transaction authorization runs on fresh commands and replay disclosure with scoped views',
+    () async {
+      late ReadView authorizedView;
+      final row = fixture.record('authorized-row');
+      final first = await fixture.repo.commit(
+        fixture.context('authorized-operation'),
+        requestDigest: fixture.digest(),
+        authorize: (view) async {
+          authorizedView = view;
+          expect(await view.read(row.id), isNull);
+        },
+        build: (_) async {
+          expect(
+            () => authorizedView.read(row.id),
+            throwsCheckError(CheckError.invalidTransition),
+          );
+          return Mutation([row], [], [], row);
+        },
+      );
+      expect(first, isA<Committed<StoredRecord>>());
+      var acceptanceCalled = false;
+      final deniedReplay = await fixture.repo.commit(
+        fixture.context('authorized-operation'),
+        requestDigest: fixture.digest(),
+        authorize: (view) async {
+          authorizedView = view;
+          expect((await view.read(row.id))!.id, row.id);
+          throw const CheckException(CheckError.unauthorized);
+        },
+        beforeCommit: () => acceptanceCalled = true,
+        build: (_) async => throw StateError('replay must never rebuild'),
+      );
+      expect(
+        deniedReplay,
+        isA<Rejected<StoredRecord>>().having(
+          (r) => r.error,
+          'error',
+          CheckError.unauthorized,
+        ),
+      );
+      expect(acceptanceCalled, isFalse);
+      expect(
+        () => authorizedView.read(row.id),
+        throwsCheckError(CheckError.invalidTransition),
+      );
+      expect(await fixture.repo.watchRevision('company-a').first, 1);
+    },
+  );
+  test(
+    'transaction authorization rejection prevents fresh mutation and journal writes',
+    () async {
+      final result = await fixture.repo.commit(
+        fixture.context('denied-fresh'),
+        requestDigest: fixture.digest(),
+        authorize: (view) async {
+          expect(await view.list('example'), isEmpty);
+          throw const CheckException(CheckError.unauthorized);
+        },
+        build: (_) async =>
+            throw StateError('unauthorized builder must not run'),
+      );
+      expect(
+        result,
+        isA<Rejected<StoredRecord>>().having(
+          (r) => r.error,
+          'error',
+          CheckError.unauthorized,
+        ),
+      );
+      expect(await fixture.repo.watchRevision('company-a').first, 0);
+      expect(await fixture.count('example'), 0);
+    },
+  );
   test(
     'replays the original result without executing a retry builder',
     () async {

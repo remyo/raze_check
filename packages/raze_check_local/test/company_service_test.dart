@@ -55,6 +55,120 @@ void main() {
     authorityGenerationId: company.authorityGenerationId,
   );
   test(
+    'queued replay rechecks membership after authorized self deactivation',
+    () async {
+      final company = await create('queued-replay-company');
+      final staff =
+          (await companies.createStaff(
+                    context(company, 'operator-staff'),
+                    const StaffDraft(name: 'Operator'),
+                  )
+                  as Committed<StaffRecord>)
+              .value;
+      await companies.grantCapabilities(
+        context(company, 'grant'),
+        staff.membershipId,
+        {Capability.manageStaff},
+      );
+      await companies.activateOperator(
+        context(company, 'activate'),
+        staff.membershipId,
+        'operator own passphrase',
+      );
+      final operator = await companies.unlockOperator(
+        company.id,
+        staff.membershipId,
+        'operator own passphrase',
+      );
+      final savedContext = context(
+        company,
+        'saved-operation',
+        session: operator,
+      );
+      const draft = StaffDraft(name: 'Original saved staff');
+      expect(
+        await companies.createStaff(savedContext, draft),
+        isA<Committed<StaffRecord>>(),
+      );
+      final beforeRevision = await fixture.repo.watchRevision(company.id).first;
+      final beforeStaff = await fixture.count('staff');
+      late LocalCheckRepository queuedRepository;
+      late Future<CommandResult<StoredRecord>> deactivation;
+      var queued = false;
+      final cipher = GatedCipher(
+        AesPayloadCipher(VaultKeys(fixture.keys)),
+        openRecordId: 'unused-gate',
+        onOpened: (recordId) {
+          // The replay has read its live membership and reached the final company
+          // read in preflight. Queue the actor's own authorized deactivation while
+          // that read still owns the repository, ahead of the replay transaction.
+          if (queued || recordId != 'record:${company.id}') return;
+          queued = true;
+          deactivation = queuedRepository.commit(
+            context(company, 'self-deactivate-fixture', session: operator),
+            requestDigest: Uint8List.fromList(List.filled(32, 73)),
+            beforeCommit: () => identity.requireActor(operator),
+            build: (view) async {
+              final row = (await view.read(staff.membershipId))!;
+              final member = Membership.fromJson(
+                jsonDecode(utf8.decode(row.payload)) as Map<String, dynamic>,
+              );
+              AccessPolicy(
+                identity,
+              ).require(operator, member, Capability.manageStaff);
+              final inactive = Membership(
+                id: member.id,
+                companyId: member.companyId,
+                personId: member.personId,
+                employeeId: member.employeeId,
+                owner: member.owner,
+                active: false,
+                capabilities: member.capabilities,
+                revision: member.revision + 1,
+              );
+              final result = StoredRecord(
+                member.id,
+                company.id,
+                'membership',
+                inactive.revision,
+                Uint8List.fromList(utf8.encode(jsonEncode(inactive.toJson()))),
+              );
+              return Mutation([result], [], [], result);
+            },
+          );
+        },
+      );
+      queuedRepository = LocalCheckRepository(
+        database: fixture.database,
+        cipher: cipher,
+      );
+      final queuedCompanies = LocalCompanyService(
+        repository: queuedRepository,
+        identity: identity,
+        keys: fixture.keys,
+        clock: clock,
+        ids: SecureIds(),
+      );
+      final replay = await queuedCompanies.createStaff(savedContext, draft);
+      expect(queued, isTrue);
+      expect(await deactivation, isA<Committed<StoredRecord>>());
+      expect(identity.requireActor(operator).personId, staff.personId);
+      expect(
+        replay,
+        isA<Rejected<StaffRecord>>().having(
+          (r) => r.error,
+          'error',
+          CheckError.unauthorized,
+        ),
+      );
+      expect(
+        await fixture.repo.watchRevision(company.id).first,
+        beforeRevision + 1,
+      );
+      expect(await fixture.count('staff'), beforeStaff);
+    },
+  );
+  test(
     'rejected operator activation deletes its owned uncommitted signing key',
     () async {
       final a = await create('cleanup-company');
@@ -669,7 +783,8 @@ void main() {
 }
 
 class GatedCipher implements PayloadCipher {
-  GatedCipher(this.delegate, {this.openRecordId});
+  GatedCipher(this.delegate, {this.openRecordId, this.onOpened});
+  final void Function(String)? onOpened;
   final String? openRecordId;
   final PayloadCipher delegate;
   final entered = Completer<void>(), release = Completer<void>();
@@ -707,6 +822,7 @@ class GatedCipher implements PayloadCipher {
       revision: revision,
       sealed: sealed,
     );
+    onOpened?.call(recordId);
     if (!gated && recordId == openRecordId) {
       gated = true;
       entered.complete();

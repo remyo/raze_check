@@ -279,6 +279,7 @@ final class LocalCheckRepository implements CheckRepository {
     CommandContext context, {
     required Uint8List requestDigest,
     required Future<Mutation> Function(ReadView) build,
+    Future<void> Function(ReadView)? authorize,
     void Function()? beforeCommit,
   }) {
     final digest = Uint8List.fromList(requestDigest);
@@ -290,6 +291,17 @@ final class LocalCheckRepository implements CheckRepository {
             context.companyId,
             context.operationId,
           );
+          if (authorize != null) {
+            final authorizationView = _TransactionReadView(
+              this,
+              context.companyId,
+            );
+            try {
+              await authorize(authorizationView);
+            } finally {
+              authorizationView.active = false;
+            }
+          }
           if (existing != null) {
             _checkReplay(existing, context, digest);
             if (existing.result != null) {

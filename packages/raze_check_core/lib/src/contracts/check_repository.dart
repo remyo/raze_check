@@ -168,6 +168,10 @@ final class LogicalSnapshot {
 abstract interface class CheckRepository {
   /// Digest is SHA-256 of normalized caller intent, excluding regenerated IDs,
   /// timestamps and signatures. A retry never executes [build] again.
+  /// [authorize] runs inside the transaction after operation decryption for
+  /// both fresh commands and completed replays. Read current permissions and
+  /// authority only through its scoped [ReadView], never recursive repository
+  /// calls. Throwing prevents building, writing or disclosing a saved result.
   /// [beforeCommit] runs synchronously after all mutation work, immediately
   /// before transaction acceptance (and after replay decryption). Throwing
   /// rejects/rolls back. A later lock cannot cancel an accepted SQL commit.
@@ -175,6 +179,7 @@ abstract interface class CheckRepository {
     CommandContext context, {
     required Uint8List requestDigest,
     required Future<Mutation> Function(ReadView) build,
+    Future<void> Function(ReadView)? authorize,
     void Function()? beforeCommit,
   });
 

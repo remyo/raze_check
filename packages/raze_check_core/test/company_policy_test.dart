@@ -28,6 +28,7 @@ void main() {
   Membership member(
     String company, {
     bool owner = false,
+    bool active = true,
     Set<Capability> caps = const {},
   }) => Membership(
     id: 'm',
@@ -35,9 +36,42 @@ void main() {
     personId: 'p',
     employeeId: 'e',
     owner: owner,
-    active: true,
+    active: active,
     capabilities: caps,
     revision: 1,
+  );
+  test(
+    'pure core eligibility rejects inactive owners and owner-only staff grants',
+    () {
+      expect(
+        AccessPolicy.eligible(
+          member('a', owner: true, active: false),
+          Capability.manageStaff,
+        ),
+        isFalse,
+      );
+      expect(
+        AccessPolicy.eligible(
+          member('a', caps: {Capability.manageCompany}),
+          Capability.manageCompany,
+        ),
+        isFalse,
+      );
+      expect(
+        AccessPolicy.eligible(
+          member('a', caps: {Capability.manageStaff}),
+          Capability.manageStaff,
+        ),
+        isTrue,
+      );
+      expect(
+        AccessPolicy.eligible(
+          member('a', owner: true),
+          Capability.recoverCompany,
+        ),
+        isTrue,
+      );
+    },
   );
   test('staff and owner permissions belong to each company membership', () {
     expect(policy.can(member('a'), Capability.manageStaff), isFalse);

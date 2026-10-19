@@ -185,6 +185,15 @@ final class LocalCompanyService implements CompanyService {
         repository.commit(
           context,
           requestDigest: digest,
+          authorize: (view) async {
+            final current = identity.requireActor(session);
+            if (current.restrictedCompanyId != null) {
+              throw const CheckException(CheckError.unauthorized);
+            }
+            if (await view.read(companyId) != null) {
+              await _authorize(context, Capability.manageCompany, view);
+            }
+          },
           beforeCommit: () => identity.requireActor(session),
           build: (view) async {
             if (await view.read(companyId) != null) {
@@ -420,14 +429,17 @@ final class LocalCompanyService implements CompanyService {
       actor.restrictedMembershipId,
       intent,
     ]);
+    late Membership authorizedMember;
     return _convert(
       repository.commit(
         context,
         requestDigest: digest,
+        authorize: (view) async {
+          authorizedMember = await _authorize(context, capability, view);
+        },
         beforeCommit: () => identity.requireActor(context.session),
         build: (view) async {
-          final member = await _authorize(context, capability, view);
-          final mutation = await build(view, member);
+          final mutation = await build(view, authorizedMember);
           await _authorize(context, capability, view);
           return mutation;
         },
