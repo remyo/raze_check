@@ -2,7 +2,7 @@
 
 Date: 2026-10-18
 
-Last revised: 2026-10-19 — multiple companies, company-specific roles, device transfer, and interface direction.
+Last revised: 2026-10-19 — standalone Raze Check first, future Raze Store embedding, durable local replicas, and recovery boundaries.
 
 Status: Product scope for review before implementation planning. No application code has been created.
 
@@ -10,9 +10,13 @@ Status: Product scope for review before implementation planning. No application 
 
 Build a Flutter application for a business to manage staff records, attendance, leave, overtime, and salary summaries. Staff should be able to record attendance when the manager is away. A separate workplace tablet is optional.
 
-The agreed product model is free offline use with manual/local transfer, and paid cloud coordination. Both versions support local storage. Payment enables automatic synchronization and remote access; it does not remove offline capability.
+The agreed product model is free offline use with manual/local transfer, and paid cloud coordination. Both versions support local storage. Payment enables automatic cloud synchronization and remote access; it does not remove offline capability. Future same-device synchronization between Raze Check and Raze Store belongs to the free local feature set.
 
 The user has agreed to an offline attendance receipt workflow: a staff member scans a workplace QR, saves an attendance event, and generates a receipt QR. The manager imports the receipt image, scans it, or receives the same event through local sharing. Repeated delivery must not create repeated attendance.
+
+Current delivery priority is the standalone Raze Check app. The user also wants admins eventually to open Raze Check inside the existing Flutter Raze Store app, while staff can use standalone Raze Check. Keep that integration on hold. Prepare reusable attendance logic, embeddable screens, and versioned integration boundaries during the standalone build; do not add a Raze Store feature entry, dependency, or native bridge in this phase. The [integration boundaries design](2026-10-19-raze-check-integration-boundaries.md) records the future contract and recovery behavior.
+
+Future requirement: when both apps are linked on the same device, each retains a durable, independently recoverable attendance copy. Users may continue from the surviving copy after uninstalling either app. This protects only data and attachments acknowledged by that surviving copy; cache, unacknowledged transfers, and unsynchronized records are not guaranteed recovery sources. Local replication is not a backup against loss of the whole device.
 
 The operating rules below are proposed defaults that make this direction coherent. They are part of this review, not claims that every detail has already been approved. Technology vendors, subscription prices, hardware purchases, and implementation schedules are not selected by this document.
 
@@ -28,6 +32,8 @@ The operating rules below are proposed defaults that make this direction coheren
 | Optional workplace tablet | Displays workplace attendance QR codes or runs a supervised attendance station. A tablet is not required for phone-based attendance receipts. |
 
 Proposed free-mode boundary: one management database is authoritative for membership, approvals, and salary records. Owner and permitted admins can use management mode on that device. Independent management databases making concurrent changes are not included in the initial free design. Replacing the management device uses backup/restore rather than creating a second authority.
+
+Future linked apps may hold two physical copies while retaining one current management authority per company. Both interfaces submit management changes to that authority; the peer receives verified committed changes and recovery checkpoints. A peer copy does not independently approve or finalize management changes while the authority is unavailable. Authorized recovery can establish a replacement authority and must detect a former authority returning. This integration is deferred and does not expand initial free management to multiple independent writers.
 
 Paid mode supports multiple authorized management devices through the company cloud service. Employee devices receive only the information and operations their membership permits.
 
@@ -61,6 +67,7 @@ The free one-authority rule applies per company: one management device may hold 
 | Owner/admin collaboration | Permissions within one management database | Multiple authorized management devices |
 | Backup and export | Manual backup, restore, and export | Manual tools plus automatic cloud backup |
 | New-device transfer | Encrypted export/import; paired local transfer when available | Same offline tools plus account-based restoration of synchronized data |
+| Raze Store miniapp and same-device recovery copies | Future integration; durable local copies and explicit recovery, deferred from the standalone launch | Same integration plus company cloud coordination; also deferred |
 | Dashboard freshness | Reflects records received by that device | Live updates while connected; last synchronization shown otherwise |
 
 Free local Wi-Fi transfer requires devices to be reachable and the app's sharing session to be available. Sharing on the same Wi-Fi is not automatic authorization to read company data. A manager who is away receives nothing until a receipt is delivered by some route.
@@ -215,6 +222,16 @@ Encrypted export/import and restore belong in the first free foundation. Direct 
 
 Proposed subscription-expiry behavior: keep downloaded records readable/exportable and allow local capture; automatic cloud coordination follows the subscription policy. Returning to a free company requires choosing/restoring one main management database and resolving outstanding records. Do not silently turn several former cloud clients into independent management authorities. Pricing, retention duration, and downgrade timing are commercial decisions for the paid release.
 
+### Future companion-app copies and reinstall recovery
+
+Raze Store integration is on hold. Its eventual same-device replica must use persistent encrypted storage, not cache. Each acknowledged recovery checkpoint includes a consistent company state, required attachments, version information, and recovery/decryption access that works without the removed app. Operating-system-protected device keys are not assumed exportable; replacement credentials require the authorized recovery flow.
+
+Display local-save status separately from companion-copy status. Only report "Copy verified in both apps" through a checkpoint durably saved and validated by both apps. Later changes awaiting replication remain visible. A missing, outdated, locked, or storage-full companion must not produce a false protection indicator. Do not rely on an uninstall callback to perform a final copy.
+
+If an app is reinstalled, "Restore existing company data?" is offered only after an authorized source is available: the surviving linked app, a user-selected encrypted backup, or paid cloud recovery. Show the company, source, checkpoint time, and completeness. Company-name or ID matching alone is not proof of authority. Restore preserves IDs and reviews conflicting existing data. An uninstall erases that installation's private data; its own cache is not a restoration source. If both apps are removed and there is no usable external backup or synchronized cloud copy, recovery cannot reconstruct the missing records.
+
+Authority may be hosted by either app, with an explicitly verified handover or recovery and a separately recoverable peer copy. Shared read access to a single app-owned database is insufficient for the requested uninstall recovery. Native sharing, replication, and recovery discovery need their own implementation plan and platform tests before any uninstall-survival claim.
+
 ## 8. Biometrics and optional equipment
 
 Personal-phone fingerprint or supported face authentication can unlock or authorize use of the employee's existing account. It establishes device authentication, not an independent employee identity or workplace-presence proof.
@@ -245,7 +262,7 @@ Design requirements include scalable text, screen-reader labels, accessible cont
 
 ## 10. Architecture boundaries and phased delivery
 
-One Flutter product can expose staff, management, and optional station modes. Keep these responsibilities separate:
+Build standalone Raze Check as the first host of reusable Flutter features supporting staff, management, and optional station modes. Its business logic and screens must not import Raze Store internals or require Raze Store to be installed. A later host adapter can embed the same features inside Raze Store, passing authenticated company/session context and integrating navigation, theme, and platform services. See the [integration boundaries design](2026-10-19-raze-check-integration-boundaries.md). Keep these responsibilities separate:
 
 - Membership and permissions: personal identities, isolated company memberships, enrollment, authorized devices, and company-scoped roles.
 - Staff records: default/custom fields, attachments, and visibility.
@@ -254,17 +271,20 @@ One Flutter product can expose staff, management, and optional station modes. Ke
 - Requests: leave, overtime, and correction decisions.
 - Salary: versioned pay settings and calculation snapshots from approved inputs.
 - Recovery: scoped encrypted export/import, backup, restore, device-key replacement, and authority handover.
+- Host integration: versioned module entry points and replaceable storage/transport services; native cross-app access and replica scheduling remain deferred.
 
 All incoming transfer routes use the same validation and duplicate-handling logic. Transport adapters do not independently edit approved attendance or salary.
 
 This is a product-level design, not one large implementation task. Proposed delivery order:
 
-1. Free attendance foundation: multiple-company identities/switching, company setup, staff enrollment, permissions, local storage, separate QR types, attendance receipt capture/import, approval, duplicate handling, manual correction, basic reports, encrypted export/import, and backup/restore to a new device.
+1. Standalone free attendance foundation: multiple-company identities/switching, company setup, staff enrollment, permissions, local storage, separate QR types, attendance receipt capture/import, approval, duplicate handling, manual correction, basic reports, encrypted export/import, and backup/restore to a new device. Establish reusable module boundaries and versioned commands/archives so later host integration does not require duplicating attendance rules. Do not ship an inactive Raze Store menu or claim live cross-app sync.
 2. Complete free workplace workflows: authenticated local sharing, schedules/grace rules, custom fields/attachments, leave, OT, and salary summaries. Each module gets its detailed rules and acceptance criteria before its implementation plan.
 3. Paid collaboration: cloud accounts and sync, multiple management devices, remote approvals, attachment sync, recovery backups, company migration, and subscription behavior.
 4. Optional extensions: shared biometric hardware/recognition, advanced multi-branch management, and jurisdiction-specific payroll integrations after separate design review.
 
 Local Wi-Fi sharing remains in the intended free feature set even if QR transfer ships first. The optional equipment and advanced features are not prerequisites for the core product.
+
+Held integration track: Raze Store navigation and host adapter, native same-device communication, initial linking, durable replica synchronization, and companion-app recovery. It can be planned after the standalone foundation when the user resumes it; it does not require a paid subscription and is not automatically activated by completing the standalone phase.
 
 ## 11. Acceptance scenarios
 
@@ -286,6 +306,9 @@ Before any release claims, verify the relevant scenarios on the selected target 
 14. Move free management authority to a new device, replace device credentials correctly, and detect an old authority or stale backup returning later.
 15. Restore staff-owned data without exporting unauthorized employer records. Explain missing unsynchronized data and recovery-material failures accurately.
 16. Verify dashboard freshness, separate delivery/approval indicators, text scaling, screen-reader navigation, and phone/tablet layouts.
+17. Run standalone Raze Check without Raze Store installed. Verify its feature code does not import host-specific application globals, and its versioned command/archive boundaries reject incompatible or unauthorized input.
+
+Additional integration acceptance scenarios apply only when the held Raze Store track is resumed. They include uninstalling either app after verified replication, incomplete copies, incompatible app versions, authenticated reinstall restoration, and the old authority returning after recovery; see the integration boundaries design. They are not claims about the standalone release.
 
 ## 12. Decisions to settle before each build phase
 
@@ -294,6 +317,8 @@ Before the free foundation plan, confirm the launch platforms (Android, iOS, or 
 Before schedules and salary implementation, specify grace treatment, payable breaks, overnight-shift assignment, overtime approval/rates, rounding, currency, leave rules, monthly proration, and finalized-period correction behavior. Do not infer these rules from the user's location.
 
 Before paid launch, select the backend and account-recovery approach, company-plan limits/pricing, backup retention, attachment limits, cloud migration/downgrade behavior, and remote admin conflict policies. These commercial/cloud decisions need not block a working free attendance foundation.
+
+Before resuming Raze Store integration, validate native cross-app access, app signing/entitlements, background limitations, independent recovery credentials, replica completeness, storage usage, compatible schema evolution, and authority recovery rules on the chosen platforms. Inspect the then-current Raze Store structure. Reusing Flutter code does not by itself share storage between installed apps.
 
 ## 13. References checked during brainstorming
 
@@ -304,5 +329,10 @@ Before paid launch, select the backend and account-recovery approach, company-pl
 - [Apple Face ID behavior and API privacy boundary](https://support.apple.com/en-us/102381)
 - [Material Design for Flutter](https://docs.flutter.dev/ui/design/material)
 - [Flutter accessibility guidance](https://docs.flutter.dev/ui/accessibility)
+- [Flutter reusable packages](https://docs.flutter.dev/packages-and-plugins/developing-packages)
+- [Android content providers](https://developer.android.com/guide/topics/providers/content-provider-basics)
+- [Android persistent files, cache, and uninstall behavior](https://developer.android.com/training/data-storage/app-specific)
+- [Apple App Groups](https://developer.apple.com/documentation/xcode/configuring-app-groups)
+- [Apple group-container lifecycle](https://developer.apple.com/documentation/Foundation/FileManager/containerURL(forSecurityApplicationGroupIdentifier:))
 
 Next artifact: a detailed implementation plan for the first delivery phase after this product design is reviewed. Launch platforms and implementation technology choices belong in that planning discussion; this document does not implicitly select a backend vendor, database package, or biometric device.
