@@ -145,9 +145,20 @@ final class LocalIdentityService implements IdentityService {
         publicKey: public,
       );
       if (_epoch != epoch) throw const CheckException(CheckError.locked);
-      await catalog.write([...profiles, profile]);
-      committed = true;
-      return _issue(profile, epoch);
+      SessionHandle? publishedSession;
+      await catalog.write(
+        [...profiles, profile],
+        beforePublish: () {
+          if (_epoch != epoch) throw const CheckException(CheckError.locked);
+        },
+        onPublished: () {
+          committed = true;
+          publishedSession = _issue(profile, epoch);
+        },
+      );
+      // Publication already succeeded. A later lock invalidates this issued
+      // handle, but must not turn the durable create into a rejected operation.
+      return publishedSession!;
     } finally {
       if (!committed) {
         for (final id in allocated) {

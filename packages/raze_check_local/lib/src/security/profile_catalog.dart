@@ -6,9 +6,27 @@ import '../files/app_paths.dart';
 import 'payload_cipher.dart';
 import 'secure_key_store.dart';
 
+/// Writes encrypted staging bytes; publication remains owned by the catalog.
+abstract interface class CatalogStagingWriter {
+  Future<void> write(File file, Uint8List sealed);
+}
+
+final class FileCatalogStagingWriter implements CatalogStagingWriter {
+  const FileCatalogStagingWriter();
+  @override
+  Future<void> write(File file, Uint8List sealed) async {
+    await file.writeAsBytes(sealed, flush: true);
+  }
+}
+
 /// Small versioned identity index only. Staff/attendance bodies belong to Drift.
 final class ProfileCatalog {
-  ProfileCatalog({required this.paths, required this.keys});
+  ProfileCatalog({
+    required this.paths,
+    required this.keys,
+    this.stagingWriter = const FileCatalogStagingWriter(),
+  });
+  final CatalogStagingWriter stagingWriter;
   final AppPaths paths;
   final SecureKeyStore keys;
   static const _scope = 'installation-catalog';
@@ -46,7 +64,11 @@ final class ProfileCatalog {
     }
   }
 
-  Future<void> write(List<LocalProfile> profiles) async {
+  Future<void> write(
+    List<LocalProfile> profiles, {
+    void Function()? beforePublish,
+    void Function()? onPublished,
+  }) async {
     File? staging;
     try {
       // Never provision if encrypted state already exists.
@@ -79,9 +101,13 @@ final class ProfileCatalog {
       ).seal(scopeId: _scope, recordId: 'profiles', revision: 1, plain: bytes);
       await paths.root.create(recursive: true);
       staging = File('${paths.catalog.path}.${SecureIds().next()}.tmp');
-      await staging.writeAsBytes(sealed, flush: true);
-      await staging.rename(paths.catalog.path);
+      await stagingWriter.write(staging, sealed);
+      // One synchronous publication boundary: lock cannot interleave between
+      // cancellation validation, atomic replacement, and session issuance.
+      beforePublish?.call();
+      staging.renameSync(paths.catalog.path);
       staging = null;
+      onPublished?.call();
     } on CheckException {
       rethrow;
     } catch (_) {
