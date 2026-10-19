@@ -13,6 +13,7 @@ dependencies:
   drift: 2.34.0
   path_provider: 2.1.6
   flutter_secure_storage: 11.2.0
+  cryptography: 2.9.0
   cryptography_flutter: 2.3.4
   mobile_scanner: 7.4.2
   file_selector: 1.1.0

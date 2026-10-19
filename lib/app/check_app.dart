@@ -1,9 +1,20 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:raze_check_core/raze_check_core.dart';
+import 'package:raze_check_feature/raze_check_feature.dart';
+import 'local_composition.dart';
 
 /// Standalone composition entry; reusable features live in their own package.
-class CheckApp extends StatelessWidget {
-  const CheckApp({super.key});
+class CheckApp extends StatefulWidget {
+  const CheckApp({super.key, this.identity});
+  final Future<IdentityService>? identity;
+  @override
+  State<CheckApp> createState() => _CheckAppState();
+}
 
+class _CheckAppState extends State<CheckApp> {
+  late final Future<IdentityService> _identity =
+      widget.identity ?? createLocalIdentity();
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'Raze Check',
@@ -19,48 +30,219 @@ class CheckApp extends StatelessWidget {
       ),
       useMaterial3: true,
     ),
-    home: const _StartupScreen(),
+    home: FutureBuilder<IdentityService>(
+      future: _identity,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Scaffold(
+            body: Center(
+              child: Text(
+                profileError(
+                  snapshot.error is CheckException
+                      ? (snapshot.error as CheckException).code
+                      : CheckError.storageFailure,
+                ),
+              ),
+            ),
+          );
+        }
+        if (!snapshot.hasData) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        return _ProfileGate(identity: snapshot.data!);
+      },
+    ),
   );
 }
 
-class _StartupScreen extends StatelessWidget {
-  const _StartupScreen();
+class _ProfileGate extends StatefulWidget {
+  const _ProfileGate({required this.identity});
+  final IdentityService identity;
+  @override
+  State<_ProfileGate> createState() => _ProfileGateState();
+}
+
+class _ProfileGateState extends State<_ProfileGate>
+    with WidgetsBindingObserver {
+  late Future<List<LocalProfile>> _profiles;
+  SessionHandle? _session;
+  bool _setup = false;
+  LocalProfile? _selected;
+  Timer? _expiry;
+  bool _obscured = false;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _profiles = widget.identity.profiles();
+  }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    body: SafeArea(
-      child: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(32),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 480),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(32),
-                  child: Image.asset(
+  void dispose() {
+    _expiry?.cancel();
+    widget.identity.lock();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  void _lock() {
+    widget.identity.lock();
+    _expiry?.cancel();
+    setState(() {
+      _session = null;
+      _setup = false;
+      _selected = null;
+      _profiles = widget.identity.profiles();
+    });
+  }
+
+  void _opened(SessionHandle session) {
+    try {
+      widget.identity.requireActor(session);
+    } on CheckException {
+      _lock();
+      return;
+    }
+    setState(() {
+      _session = session;
+      _setup = false;
+      _selected = null;
+    });
+    _expiry?.cancel();
+    _expiry = Timer(const Duration(minutes: 5), _lock);
+  }
+
+  void _checkSession() {
+    if (!mounted || _session == null) return;
+    try {
+      widget.identity.requireActor(_session!);
+      _expiry?.cancel();
+      _expiry = Timer(const Duration(minutes: 5), _lock);
+    } on CheckException {
+      _lock();
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Hide protected content in the switcher; check the original handle on resume.
+    setState(() {
+      _obscured = state != AppLifecycleState.resumed;
+    });
+    if (state == AppLifecycleState.resumed) _checkSession();
+  }
+
+  @override
+  Widget build(BuildContext context) => Visibility(
+    visible: !_obscured,
+    maintainState: true,
+    replacement: const Scaffold(
+      body: Center(child: Text('Raze Check locked view')),
+    ),
+    child: _content(context),
+  );
+
+  Widget _content(BuildContext context) {
+    if (_session != null) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Raze Check'),
+          actions: [TextButton(onPressed: _lock, child: const Text('Lock'))],
+        ),
+        body: const Center(child: Text('Profile unlocked')),
+      );
+    }
+    if (_setup) {
+      return ProfileSetupScreen(
+        identity: widget.identity,
+        onCreated: _opened,
+        onCancel: () => setState(() {
+          _setup = false;
+        }),
+      );
+    }
+    if (_selected != null) {
+      return UnlockScreen(
+        identity: widget.identity,
+        profile: _selected!,
+        onUnlocked: _opened,
+        onCancel: () => setState(() {
+          _selected = null;
+        }),
+      );
+    }
+    return Scaffold(
+      appBar: AppBar(title: const Text('Raze Check')),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Image.asset(
                     'assets/branding/raze_check_logo_master.png',
                     width: 144,
                     height: 144,
                     semanticLabel: 'Raze Check mascot',
                   ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'Raze Check',
-                  style: Theme.of(context).textTheme.headlineLarge,
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Local services are not configured yet.',
-                  textAlign: TextAlign.center,
-                ),
-              ],
+                  const SizedBox(height: 24),
+                  FutureBuilder<List<LocalProfile>>(
+                    future: _profiles,
+                    builder: (context, snapshot) {
+                      if (snapshot.hasError) {
+                        return Column(
+                          children: [
+                            Text(
+                              profileError(
+                                snapshot.error is CheckException
+                                    ? (snapshot.error as CheckException).code
+                                    : CheckError.storageFailure,
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () => setState(() {
+                                _profiles = widget.identity.profiles();
+                              }),
+                              child: const Text('Retry'),
+                            ),
+                          ],
+                        );
+                      }
+                      if (!snapshot.hasData) {
+                        return const CircularProgressIndicator();
+                      }
+                      return Column(
+                        children: [
+                          for (final profile in snapshot.data!)
+                            ListTile(
+                              title: Text('Unlock ${profile.displayName}'),
+                              trailing: const Icon(Icons.lock_outline),
+                              onTap: () => setState(() {
+                                _selected = profile;
+                              }),
+                            ),
+                          const SizedBox(height: 12),
+                          FilledButton(
+                            onPressed: () => setState(() {
+                              _setup = true;
+                            }),
+                            child: const Text('Create local profile'),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }

@@ -99,3 +99,60 @@ pinned to the approved version for this baseline.
 Compilation and startup tests do not prove camera, encryption, attendance,
 permissions, recovery, physical-device behavior, or release signing. No app was
 distributed, uploaded, or submitted to an app store.
+
+## Local identity and vault boundary (Task 2)
+
+Profiles are local identities, without a network account. The small v1 profile
+and installation catalog lives at application-support `raze_check/profiles.v1.enc`.
+It is AES-256-GCM encrypted and replaced through a flushed staging file and
+same-directory atomic rename. Identity mutations reject concurrent provisioning
+against the same catalog across service instances in the app isolate. Domain staff/attendance records belong to Drift,
+not this catalog or secure storage.
+
+OS secure storage holds independent random 32-byte person/company vault keys,
+Ed25519 installation signing seeds, and PBKDF2 unlock credential material. Every
+profile has its own installation/signing identity. Installation signing keys are
+not portable recovery keys. iOS keys use `unlocked_this_device` with keychain
+synchronization disabled. All iOS build configurations include the plugin-required empty keychain access-group entitlement; no shared App Group is configured. Android disables the plugin's destructive `resetOnError` behavior; failed key reads preserve all stored material.
+A missing key for encrypted state returns `recoveryRequired`; no read path
+silently generates a key. Key creation is a separate provisioning operation.
+
+Unlock verifiers use PBKDF2-HMAC-SHA256, 600,000 iterations, a random 16-byte salt,
+and 32-byte output. Derivation runs in a worker isolate. Creation requires at
+least 12 Unicode scalar values and UI confirmation. The verifier comparison
+accumulates byte differences. Sessions are private live objects authorized by a
+service-owned identity map, expire after five minutes of inactivity, and are
+never serialized. Explicit lock clears live handles and removes protected views;
+resume revalidates the original session. Clock rollback fails closed.
+
+AES payload v1 is `1 | 12-byte nonce | ciphertext | 16-byte GCM tag`; each seal
+uses secure randomness. GCM associated data encodes a domain plus scope ID,
+record ID, and revision as an unambiguous JSON list. Scope keys are not derived
+from passphrases. Ed25519 verification accepts only 32-byte public keys and
+64-byte signatures and remains possible without the private key.
+
+Key-bound local state must not migrate through operating-system backups.
+Android disables automatic backup and explicitly excludes private roots, files,
+databases, preferences, and external data from cloud backup and device transfer.
+iOS marks the private application-support directory excluded from backup through
+a narrow native path-checked channel before services start. Portable recovery
+must use the explicitly encrypted archives in Tasks 10–11. These configuration
+choices and unit tests are not proof of secure-storage parity on hardware.
+
+### Pending device verification matrix
+
+| Gate | Android physical | iOS physical |
+| --- | --- | --- |
+| Create profile, force-stop, relaunch and unlock with the same IDs/keys | Pending Task 13 | Pending Task 13 |
+| Sign and decrypt after relaunch; wrong secret fails | Pending Task 13 | Pending Task 13 |
+| Background for five minutes, resume, protected views are cleared | Pending Task 13 | Pending Task 13 |
+| OS backup/transfer excludes key-bound records and keys | Pending Task 13 | Pending Task 13 |
+| Missing key over existing encrypted data requires recovery | Pending Task 13 | Pending Task 13 |
+| Secure storage behavior across device lock, reboot, reinstall | Pending Task 13 | Pending Task 13 |
+
+No device key persistence, reinstall recovery, or platform parity is claimed by
+Task 2. Explicit archive export/import remains a later implementation gate.
+
+Host KDF benchmark: PBKDF2-HMAC-SHA256, 600,000 iterations, in a worker isolate
+took 3,546 ms on the host debug Dart VM while native verification was running.
+This is a workstation observation, not a mobile-device performance guarantee.
