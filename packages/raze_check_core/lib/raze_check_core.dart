@@ -15,3 +15,15 @@ export 'src/contracts/check_repository.dart';
 export 'src/company/company_models.dart';
 export 'src/company/access_policy.dart';
 export 'src/company/company_service.dart';
+
+export 'src/messaging/message_types.dart'
+    show
+        MessageKind,
+        MessagePayload,
+        SignedMessage,
+        AuthorityCertificate,
+        messageKeyId,
+        messageSigningBytes;
+export 'src/messaging/message_codec.dart';
+export 'src/messaging/message_verifier.dart';
+export 'src/messaging/message_limits.dart';
