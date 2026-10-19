@@ -18,3 +18,4 @@ export 'src/attendance/local_attendance_service.dart';
 export 'src/platform/document_port.dart';
 export 'src/platform/mobile_qr_port.dart';
 export 'src/platform/share_port.dart';
+export 'src/recovery/local_archive_service.dart';

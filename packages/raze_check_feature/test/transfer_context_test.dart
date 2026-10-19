@@ -13,6 +13,7 @@ import 'package:raze_check_feature/raze_check_feature.dart';
 import '../../raze_check_local/test/support/two_device_fixture.dart';
 import '../../raze_check_local/test/receipt_import_test.dart' show service;
 import 'capture_flow_test.dart' show CapturePort;
+import 'support/settle_review.dart';
 
 Uint8List wire(String id) => Uint8List.fromList(
   utf8.encode(
@@ -359,9 +360,8 @@ class TransferTestFlow {
           ),
         ),
       );
-      await Future<void>.delayed(const Duration(milliseconds: 300));
     });
-    await tester.pumpAndSettle();
+    await settleReview(tester);
   }
 
   Future<void> startImportFor(Company company) async {
@@ -376,9 +376,8 @@ class TransferTestFlow {
   Future<void> completePickerWith(Uint8List? bytes) async {
     await tester.runAsync(() async {
       port.delayed!.complete(bytes);
-      await Future<void>.delayed(const Duration(milliseconds: 300));
     });
-    await tester.pumpAndSettle();
+    await settleReview(tester);
   }
 
   Future<int?> eventCount(Company company) => tester.runAsync(

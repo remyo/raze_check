@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:raze_check_core/raze_check_core.dart';
 import 'package:raze_check_feature/raze_check_feature.dart';
@@ -181,6 +182,64 @@ class _CheckAppState extends State<CheckApp> {
                           );
                         }
                         return _ProfileGate(
+                          onRecovery: _composition == null
+                              ? null
+                              : (session) async {
+                                  final services = await _composition;
+                                  if (!context.mounted) {
+                                    return;
+                                  }
+                                  services.identity.requireActor(session);
+                                  await Navigator.of(context).push<void>(
+                                    MaterialPageRoute(
+                                      builder: (routeContext) => BackupScreen(
+                                        identity: services.identity,
+                                        session: session,
+                                        backups: services.archives,
+                                        restores: services.archives,
+                                        companies: services.companies,
+                                        pickArchive: (guard) async {
+                                          await guard();
+                                          final file = await _documents.pick(
+                                            DocumentPurpose.archive,
+                                          );
+                                          if (file == null) return null;
+                                          try {
+                                            await guard();
+                                            return file.path;
+                                          } catch (_) {
+                                            await file.delete();
+                                            rethrow;
+                                          }
+                                        },
+                                        releaseArchive: (path) async {
+                                          await File(path).delete();
+                                        },
+                                        shareArchive: (bytes, guard) =>
+                                            _sharing.share(
+                                              bytes,
+                                              'backup.razecheck-backup',
+                                              'application/octet-stream',
+                                              guard: guard,
+                                              anchor: () {
+                                                final box = routeContext
+                                                    .findRenderObject();
+                                                if (box is! RenderBox ||
+                                                    !box.hasSize) {
+                                                  throw const TransferException(
+                                                    'Share position unavailable.',
+                                                  );
+                                                }
+                                                return box.localToGlobal(
+                                                      Offset.zero,
+                                                    ) &
+                                                    box.size;
+                                              },
+                                            ),
+                                      ),
+                                    ),
+                                  );
+                                },
                           attendance: attendance.data,
                           capture: capture.data,
                           attendanceMessages:
@@ -210,6 +269,7 @@ class _ProfileGate extends StatefulWidget {
   const _ProfileGate({
     required this.identity,
     this.companies,
+    this.onRecovery,
     this.enrollment,
     this.messages,
     this.capture,
@@ -217,6 +277,7 @@ class _ProfileGate extends StatefulWidget {
     this.attendanceMessages,
   });
   final IdentityService identity;
+  final Future<void> Function(SessionHandle)? onRecovery;
   final CompanyService? companies;
   final EnrollmentService? enrollment;
   final EnrollmentMessagePort? messages;
@@ -325,7 +386,14 @@ class _ProfileGateState extends State<_ProfileGate>
       return Scaffold(
         appBar: AppBar(
           title: const Text('Raze Check'),
-          actions: [TextButton(onPressed: _lock, child: const Text('Lock'))],
+          actions: [
+            if (widget.onRecovery != null && _canCreateCompany)
+              TextButton(
+                onPressed: () => widget.onRecovery!(_session!),
+                child: const Text('Backup'),
+              ),
+            TextButton(onPressed: _lock, child: const Text('Lock')),
+          ],
         ),
         body: widget.companies == null
             ? const Center(child: Text('Profile unlocked'))

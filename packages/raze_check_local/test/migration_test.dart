@@ -12,6 +12,14 @@ void main() {
     await fixture.database.customStatement(
       'DROP TABLE company_creation_reservations',
     );
+    for (final table in [
+      'restore_jobs',
+      'passive_scopes',
+      'restore_commits',
+      'restored_profiles',
+    ]) {
+      await fixture.database.customStatement('DROP TABLE $table');
+    }
     await fixture.database.customStatement('PRAGMA user_version = 1');
     await fixture.reopen();
     expect((await fixture.repo.read('company-a', 'record-1'))!.id, 'record-1');
@@ -22,7 +30,7 @@ void main() {
     expect(
       (await fixture.database.customSelect('PRAGMA user_version').getSingle())
           .read<int>('user_version'),
-      2,
+      3,
     );
     expect(
       await fixture.database
@@ -33,11 +41,20 @@ void main() {
   });
 
   test(
-    'schema-two reopen preserves committed data and foreign keys are enabled',
+    'schema-two upgrade preserves committed data and foreign keys are enabled',
     () async {
       final fixture = await RepositoryFixture.open();
       addTearDown(fixture.dispose);
       await fixture.commit();
+      for (final table in [
+        'restore_jobs',
+        'passive_scopes',
+        'restore_commits',
+        'restored_profiles',
+      ]) {
+        await fixture.database.customStatement('DROP TABLE $table');
+      }
+      await fixture.database.customStatement('PRAGMA user_version = 2');
       await fixture.reopen();
       expect(await fixture.count('example'), 1);
       expect(
@@ -48,7 +65,7 @@ void main() {
       expect(
         (await fixture.database.customSelect('PRAGMA user_version').getSingle())
             .read<int>('user_version'),
-        2,
+        3,
       );
       await expectLater(
         fixture.database.customStatement(
@@ -63,7 +80,7 @@ void main() {
     final fixture = await RepositoryFixture.open();
     addTearDown(fixture.dispose);
     await fixture.commit();
-    await fixture.database.customStatement('PRAGMA user_version = 3');
+    await fixture.database.customStatement('PRAGMA user_version = 4');
     await fixture.reopen();
     await expectLater(
       fixture.database.customSelect('SELECT COUNT(*) FROM stored_rows').get(),
@@ -86,7 +103,7 @@ void main() {
 final class InspectionDatabase extends GeneratedDatabase {
   InspectionDatabase(super.executor);
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
   @override
   Iterable<TableInfo<Table, Object?>> get allTables => [];
   @override

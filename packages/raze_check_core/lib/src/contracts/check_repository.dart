@@ -114,10 +114,12 @@ final class StoredOperation {
     required this.revision,
     required this.result,
     Set<String> personalOwners = const {},
+    this.retiredLocalCredential = false,
   }) : personalOwners = Set.unmodifiable(personalOwners),
        requestDigest = Uint8List.fromList(requestDigest).asUnmodifiableView();
   final String companyId;
   final String operationId;
+  final bool retiredLocalCredential;
   final String authorityGenerationId;
   final Uint8List requestDigest;
   final Set<String> personalOwners;

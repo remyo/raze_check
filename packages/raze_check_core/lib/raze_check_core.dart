@@ -38,3 +38,6 @@ export 'src/attendance/update_service.dart';
 export 'src/attendance/review_models.dart';
 export 'src/attendance/attendance_service.dart';
 export 'src/contracts/transfer_port.dart';
+export 'src/recovery/archive_models.dart';
+export 'src/recovery/backup_service.dart';
+export 'src/recovery/restore_service.dart';

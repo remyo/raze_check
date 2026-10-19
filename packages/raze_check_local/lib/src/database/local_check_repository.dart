@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:drift/drift.dart';
+import 'package:cryptography/cryptography.dart';
 import 'package:raze_check_core/raze_check_core.dart';
 import '../security/payload_cipher.dart';
 import '../files/app_paths.dart';
 import 'check_database.dart' show CheckDatabase;
+import '../recovery/archive_records.dart';
+part 'archive_repository.dart';
 
 /// Transactional local adapter. Authorization stays in application services.
 final class LocalCheckRepository implements CheckRepository {
@@ -111,6 +114,7 @@ final class LocalCheckRepository implements CheckRepository {
       budget: snapshotBudget,
     );
     return StoredOperation(
+      retiredLocalCredential: body['retiredLocalCredential'] == true,
       personalOwners: owners.map((r) => r.read<String>('person_id')).toSet(),
       companyId: company,
       operationId: id,
@@ -172,6 +176,9 @@ final class LocalCheckRepository implements CheckRepository {
     CommandContext context,
     Uint8List digest,
   ) {
+    if (existing.retiredLocalCredential) {
+      throw const CheckException(CheckError.recoveryRequired);
+    }
     if (existing.authorityGenerationId != context.authorityGenerationId ||
         !_sameBytes(existing.requestDigest, digest)) {
       throw const CheckException(CheckError.duplicateConflict);
@@ -183,6 +190,7 @@ final class LocalCheckRepository implements CheckRepository {
     Uint8List digest, {
     int? revision,
     StoredRecord? result,
+    bool retiredLocalCredential = false,
   }) async {
     final body = await _payloadCipher.seal(
       scopeId: context.companyId,
@@ -191,6 +199,7 @@ final class LocalCheckRepository implements CheckRepository {
       plain: Uint8List.fromList(
         utf8.encode(
           jsonEncode({
+            'retiredLocalCredential': retiredLocalCredential,
             'authorityGenerationId': context.authorityGenerationId,
             'requestDigest': base64Encode(digest),
             'expectedRevision': context.expectedRevision,
@@ -239,6 +248,7 @@ final class LocalCheckRepository implements CheckRepository {
       try {
         _validateIntent(context, digest);
         await _db.transaction(() async {
+          await _requireWritable(context.companyId);
           final existing = await _operation(
             context.companyId,
             context.operationId,
@@ -287,6 +297,7 @@ final class LocalCheckRepository implements CheckRepository {
       try {
         _validateIntent(context, digest);
         return await _db.transaction<CommandResult<StoredRecord>>(() async {
+          await _requireWritable(context.companyId);
           final existing = await _operation(
             context.companyId,
             context.operationId,
@@ -883,6 +894,18 @@ final class LocalCheckRepository implements CheckRepository {
       });
     }),
   );
+
+  Future<void> _requireWritable(String company) async {
+    if (await _db
+            .customSelect(
+              'SELECT 1 FROM passive_scopes WHERE company_id=?',
+              variables: [_s(company)],
+            )
+            .getSingleOrNull() !=
+        null) {
+      throw const CheckException(CheckError.recoveryRequired);
+    }
+  }
 
   Future<void> close() => _exclusive(_db.close);
 }

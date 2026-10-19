@@ -10,6 +10,7 @@ import 'package:raze_check_feature/raze_check_feature.dart';
 import '../../raze_check_local/test/support/two_device_fixture.dart';
 import '../../raze_check_local/test/receipt_import_test.dart' show service;
 import 'capture_flow_test.dart' show CapturePort;
+import 'support/settle_review.dart';
 
 void main() {
   testWidgets('manager imports, reviews and resends signed decision', (
@@ -25,9 +26,8 @@ void main() {
       await tester.runAsync(() async {
         await tester.tap(find.text(text));
         await tester.pump();
-        await Future<void>.delayed(const Duration(milliseconds: 500));
       });
-      await tester.pumpAndSettle();
+      await settleReview(tester);
     }
 
     await tester.runAsync(() async {
@@ -51,9 +51,8 @@ void main() {
           ),
         ),
       );
-      await Future<void>.delayed(const Duration(milliseconds: 500));
     });
-    await tester.pumpAndSettle();
+    await settleReview(tester);
     await press('Import receipt or correction');
     expect(find.textContaining('pending'), findsWidgets);
     await press('View attendance');
@@ -72,7 +71,7 @@ void main() {
       tester.element(find.text('Share selected return')),
       alignment: 0.5,
     );
-    await tester.pumpAndSettle();
+    await settleReview(tester);
     await press('Share selected return');
     expect(port.sent, isNotEmpty);
     final returned = MessageCodec().decode(
@@ -95,7 +94,7 @@ void main() {
       tester.element(find.text('Share selected return')),
       alignment: 0.5,
     );
-    await tester.pumpAndSettle();
+    await settleReview(tester);
     await press('Share selected return');
     expect(
       MessageCodec()
@@ -113,9 +112,9 @@ void main() {
     await showReview(tester, p, CapturePort());
     await pressReview(tester, 'Manual entry');
     await tester.tap(find.text('Employee'));
-    await tester.pumpAndSettle();
+    await settleReview(tester);
     await tester.tap(find.text('Staff').last);
-    await tester.pumpAndSettle();
+    await settleReview(tester);
     await tester.enterText(
       find.widgetWithText(TextField, 'Reason'),
       'Camera failed',
@@ -216,9 +215,8 @@ Future<void> pressReview(WidgetTester tester, String text) async {
   await tester.runAsync(() async {
     await tester.tap(find.text(text));
     await tester.pump();
-    await Future<void>.delayed(const Duration(milliseconds: 500));
   });
-  await tester.pumpAndSettle();
+  await settleReview(tester);
 }
 
 Future<void> showReview(
@@ -244,7 +242,6 @@ Future<void> showReview(
         ),
       ),
     );
-    await Future<void>.delayed(const Duration(milliseconds: 500));
   });
-  await tester.pumpAndSettle();
+  await settleReview(tester);
 }

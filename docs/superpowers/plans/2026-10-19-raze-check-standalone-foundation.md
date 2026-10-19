@@ -81,7 +81,7 @@ Use a Dart pub workspace: root application plus three packages with `resolution:
 | file_selector | 1.1.0 | Files/document import, including QR images |
 | share_plus | 13.3.1 | Receipt, CSV, and encrypted archive export |
 
-Use the compatible transitive `file_selector_ios` 0.5.3+6: +7 requires Flutter 3.47/Dart 3.13. Verify the lockfile rather than forcing an incompatible override. Use the SQLite native asset bundled by sqlite3 through Drift; do not add another SQLite binary package. Use Dart `Random.secure` for UUIDv4 IDs, SDK `flutter_test`/`integration_test` dev dependencies, and Dart `test` 1.31.0 for pure core tests (matching the installed Flutter toolchain's test API). Add core `timezone` 0.11.0 with bundled data in Task 1 and local `archive` 4.0.9 for bounded ZIP archives in Task 10. Implement CSV quoting locally; no network/analytics SDKs.
+Use the compatible transitive `file_selector_ios` 0.5.3+6: +7 requires Flutter 3.47/Dart 3.13. Verify the lockfile rather than forcing an incompatible override. Use the SQLite native asset bundled by sqlite3 through Drift; do not add another SQLite binary package. Use Dart `Random.secure` for UUIDv4 IDs, SDK `flutter_test`/`integration_test` dev dependencies, and Dart `test` 1.31.0 for pure core tests (matching the installed Flutter toolchain's test API). Add core `timezone` 0.11.0 with bundled data in Task 1 and local `archive` 4.5.2 for bounded ZIP archives in Task 10. Implement CSV quoting locally; no network/analytics SDKs.
 
 ## File map and module responsibilities
 
@@ -128,7 +128,7 @@ docs/testing/                        # Reproducible device evidence and limits
 - Keep public verification history for old device keys. Device replacement prevents new authorized issuance under the retired key; it must not invalidate authentic historical signatures. Company authority history uses a random generation ID, parent generation ID, and sequence, so sibling restores are detectable even if sequence numbers match.
 - First-use owner trust is explicit: show company name and a short root-key fingerprint from the invitation before accepting it. Store names alone do not authenticate a company. A portable company recovery signing key authorizes issuer/device replacement; current installation signing keys are distinct and never exported as active device identities.
 - Passphrases for local profiles and archives have a minimum of 12 Unicode characters with confirmation at creation. Use PBKDF2-HMAC-SHA256, 600,000 iterations, random 16-byte salt, and 32-byte output; benchmark off the UI thread. Archive readers accept only this v1 work factor and reject attacker-selected unbounded KDF work. OS secure storage holds independent random keys, not record bodies. Lock on explicit logout or after 5 minutes without authorized activity, evaluated on resume; draft/file-picker completion rechecks the session and company. Biometrics are deferred convenience, never required for recovery.
-- Engineering limits for this phase: QR text at most 1,500 UTF-8 bytes, message-file at most 64 KiB, selected QR image at most 20 MiB, encrypted backup at most 64 MiB, total expanded archive at most 64 MiB, individual file at most 8 MiB, at most 10,000 archive entries. Reject over-limit input before expensive work; explain file export or smaller scoped export as applicable. These are protective v1 format limits, not subscription/company caps.
+- Engineering limits for this phase: QR text at most 1,500 UTF-8 bytes, message-file at most 64 KiB, selected QR image at most 20 MiB, encrypted backup at most 64 MiB, total expanded archive at most 64 MiB, `records.json` at most 64 MiB within that expanded total, every other individual file at most 8 MiB, at most 10,000 archive entries. Reject over-limit input before expensive work; explain file export or smaller scoped export as applicable. These are protective v1 format limits, not subscription/company caps.
 - Native QR image import uses Files/document picker in v1, including files saved from messaging apps. Gallery-specific browsing can follow. `file_selector` does not implement mobile save-location selection; use system share/export and distinguish opening a share sheet from verified delivery or external backup persistence.
 
 ### Message payload registry
@@ -156,6 +156,8 @@ Task 5 implements this logical registry. Each payload begins with `[companyId, m
 Test snippets omit imports and fixture setup, but their names/assertions are requirements. Each package's `test/support/check_matchers.dart` defines `throwsCheckError(CheckError code)` using `throwsA(isA<CheckException>().having((e) => e.code, 'code', code))`. Task-local fixture wrappers mentioned in snippets belong in the listed test/support files and invoke the public interfaces; they do not substitute mock success for storage/permission tests. Define `CheckException(CheckError code)` with the shared result contract in Task 1.
 
 ### Archive v1 layout
+
+Task 10 controller amendments: direct archive4.5.2 pin; explicit indexed exact-byte records grammar with 524288 logical items and 64MiB repeated-reference raw expansion cap; consistent bounded repository traversal; retired operator credential/digest tombstones preserving operation/journal provenance. Exact inner grammar, limits, staging/activation and durability behavior: [Archive v1](../../protocol/archive-v1.md). The full 100-staff/10000-external-receipt manager archive remains a measured Task13 capacity gate. No silent limit increase or subset-as-full export.
 
 Task 10 implements a 52-byte authenticated header: 8 ASCII magic bytes `RZCKBK01`, u16 little-endian format `1`, u8 algorithm `1` (AES-256-GCM), u8 KDF `1` (PBKDF2-HMAC-SHA256), 16 salt bytes, 12 nonce bytes, u32 little-endian iterations `600000`, and u64 little-endian ciphertext length. Ciphertext follows, then the 16-byte tag. Header bytes are GCM associated data. Reject unsupported values, length mismatches, and the stated size limits before allocating or deriving keys.
 
@@ -367,11 +369,11 @@ Define these helpers in the feature test around fake ports and real services. Ad
 
 ## Task 10: Scoped encrypted backups and non-destructive staged restore
 
-**Files:** Create core `src/recovery/{archive_models,backup_service,restore_service}.dart`; local `src/recovery/{archive_codec,restore_staging,backup_catalog}.dart`; local `test/{backup_archive_test,restore_staging_test}.dart`; feature `src/recovery/{backup_screen,restore_review_screen}.dart`; `docs/protocol/archive-v1.md`; add `archive` 4.0.9 to local dependencies.
+**Files:** Create core `src/recovery/{archive_models,backup_service,restore_service}.dart`; local `src/recovery/{archive_codec,restore_staging,backup_catalog}.dart`; local `test/{backup_archive_test,restore_staging_test}.dart`; feature `src/recovery/{backup_screen,restore_review_screen}.dart`; `docs/protocol/archive-v1.md`; add `archive` 4.5.2 to local dependencies.
 
 **Interfaces:** `BackupService.create(SessionHandle, ExportScope, String passphrase) -> Future<ArchiveDescriptor>`; `RestoreService.inspect(SessionHandle, String selectedFile, String passphrase) -> Future<RestorePreview>`; `apply(RestorePreview, RestoreChoice) -> Future<RestoreResult>`. `ArchiveDescriptor` exposes an opaque artifact ID, creation time, scope, and counts; actual app-private paths remain adapter-owned. `RestorePreview` includes source manifest ID, company/person IDs, authority history, counts/hashes, file completeness, conflict list, and staging token. `RestoreChoice` permits `newInstallation` or `mergeNonConflicting`; existing active management authority is never replaced by this task alone.
 
-- [ ] Write archive/staging tests:
+- [x] Write archive/staging tests:
 
 ```dart
 final before = await repo.snapshot(scope);
@@ -381,12 +383,12 @@ expect(await repo.snapshot(scope), before);
 ```
 
 Add wrong password, truncated header/ciphertext, unsupported version, excessive KDF count, ZIP traversal/symlinks, expansion limits, missing attachment/hash mismatch, missing recovery material, repeated restore, and staff scope attempting company export. Include an actual attachment fixture even though ID-upload UI is later scope.
-- [ ] Run archive/staging tests; expect failure.
-- [ ] Implement the Archive v1 layout above, including its exact header, manifest keys, safe entry paths, and limits, and write byte-level fixtures in `archive-v1.md`. Never ZIP-copy a live SQLite file or serialize an active session/device private signing identity. Authentication failure displays "Wrong passphrase or damaged backup" because those causes cannot be reliably distinguished from a failed authentication tag.
-- [ ] Inspect into isolated staging, authenticate before extraction, use manifest-listed safe paths only, and verify all counts/hashes/recovery dependencies before presenting confirmation. Apply data transactionally with a durable restore journal, including staged secure-key provisioning and attachment moves; failures between key-store and database writes resume/roll back without replacing existing keys or deleting the source. Add fault injection at each activation boundary. New installation credentials and authority activation are Task 11, so staged restored companies remain locked from management writes until authorized.
-- [ ] Keep the last successful encrypted archive in app-private persistent storage with an explicit save/share action. Display its location and distinguish "created in this app" from a user-confirmed external saved copy. An internal archive alone will not survive uninstall. No silent search of public storage. The backup passphrase is not stored alongside the archive.
-- [ ] Run archive/staging tests and analysis; expect pass. Test staff export contains only their identities, memberships, own received history, and unsent receipts, never company ownership recovery keys.
-- [ ] Commit: `git commit -m "feat: add encrypted scoped archives and staged restore"`.
+- [x] Run archive/staging tests; expect failure.
+- [x] Implement the Archive v1 layout above, including its exact header, manifest keys, safe entry paths, and limits, and write byte-level fixtures in `archive-v1.md`. Never ZIP-copy a live SQLite file or serialize an active session/device private signing identity. Authentication failure displays "Wrong passphrase or damaged backup" because those causes cannot be reliably distinguished from a failed authentication tag.
+- [x] Inspect into isolated staging, authenticate before extraction, use manifest-listed safe paths only, and verify all counts/hashes/recovery dependencies before presenting confirmation. Apply data transactionally with a durable restore journal, including staged secure-key provisioning and attachment moves; failures between key-store and database writes resume/roll back without replacing existing keys or deleting the source. Add fault injection at each activation boundary. New installation credentials and authority activation are Task 11, so staged restored companies remain locked from management writes until authorized.
+- [x] Keep the last successful encrypted archive in app-private persistent storage with an explicit save/share action. Display its location and distinguish "created in this app" from a user-confirmed external saved copy. An internal archive alone will not survive uninstall. No silent search of public storage. The backup passphrase is not stored alongside the archive.
+- [x] Run archive/staging tests and analysis; expect pass. Test staff export contains only their identities, memberships, own received history, and unsent receipts, never company ownership recovery keys.
+- [x] Commit: `git commit -m "feat: add encrypted scoped archives and staged restore"`.
 
 ## Task 11: Replacement credentials, authority handover, and recovery
 
@@ -489,7 +491,7 @@ Self-review performed before handoff: scope maps to the approved first delivery 
 - [file_selector](https://pub.dev/packages/file_selector/versions/1.1.0), [compatible iOS implementation](https://pub.dev/packages/file_selector_ios/versions/0.5.3%2B6), and [share_plus](https://pub.dev/packages/share_plus/versions/13.3.1): native import/share differences.
 - [Secure storage](https://pub.dev/packages/flutter_secure_storage/versions/11.2.0), [cryptography](https://pub.dev/packages/cryptography/versions/2.9.0), and [Flutter crypto backend](https://pub.dev/packages/cryptography_flutter/versions/2.3.4).
 - [Compatible build_runner](https://pub.dev/packages/build_runner/versions/2.16.2) and [Drift generator manifest](https://pub.dev/api/packages/drift_dev/versions/2.35.1).
-- [Bundled time-zone database](https://pub.dev/packages/timezone/versions/0.11.0) and [archive codec](https://pub.dev/packages/archive/versions/4.0.9).
+- [Bundled time-zone database](https://pub.dev/packages/timezone/versions/0.11.0) and [archive codec](https://pub.dev/packages/archive/versions/4.5.2).
 
 ## Execution handoff
 

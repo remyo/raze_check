@@ -25,3 +25,5 @@ export 'src/attendance/correction_request_screen.dart';
 export 'src/attendance/scan_screen.dart';
 export 'src/attendance/message_import_sheet.dart';
 export 'src/attendance/message_qr.dart';
+export 'src/recovery/backup_screen.dart';
+export 'src/recovery/restore_review_screen.dart';
