@@ -430,6 +430,15 @@ extension _AttendanceReview on LocalAttendanceService {
             change.offsetMinutes,
             reason,
           );
+          final originalRequest = await view.read(
+            'correction-request:${p.messageId}',
+          );
+          if (originalRequest != null &&
+              (originalRequest.kind != 'correctionRequest' ||
+                  base64UrlEncode(originalRequest.payload) !=
+                      base64UrlEncode(codec.encode(msg)))) {
+            throw const CheckException(CheckError.duplicateConflict);
+          }
           final existing = await view.read('resolution:${p.messageId}');
           if (existing != null &&
               (_json(existing)['requestWire'] !=

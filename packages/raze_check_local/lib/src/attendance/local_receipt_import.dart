@@ -46,7 +46,16 @@ extension _ReceiptImport on LocalAttendanceService {
             );
           }
           final now = clock.nowUtc().millisecondsSinceEpoch;
-          final flags = <String>[];
+          final prior = await view.read('attendance-state:${p.messageId}');
+          final existingReceipt = await view.read('receipt:${p.messageId}');
+          // Import adds review evidence; capture and existing projection hints
+          // remain intact, including management-only flags on the projection.
+          final flags = <String>{
+            if (existingReceipt != null)
+              ...(_json(existingReceipt)['flags'] as List).cast<String>(),
+            if (prior != null)
+              ...(_json(prior)['flags'] as List).cast<String>(),
+          };
           if (verified.historicalCredential) flags.add('historicalCredential');
           if (p.field<int>('claimedUtcMs') > now + 300000) {
             flags.add('clockAnomaly');
@@ -82,7 +91,6 @@ extension _ReceiptImport on LocalAttendanceService {
             'status': flags.isEmpty ? 'received' : 'needsReview',
             'wire': base64UrlEncode(codec.encode(ack)),
           });
-          final prior = await view.read('attendance-state:${p.messageId}');
           final state = _row(
             c.id,
             'attendance-state:${p.messageId}',
@@ -91,7 +99,7 @@ extension _ReceiptImport on LocalAttendanceService {
               ...(prior == null ? _receiptState(message) : _json(prior)),
               'delivery': 'received',
               'receivedUtcMs': now,
-              'flags': flags,
+              'flags': flags.toList(),
             },
             (prior?.revision ?? 0) + 1,
           );
@@ -109,7 +117,6 @@ extension _ReceiptImport on LocalAttendanceService {
             1,
             codec.encode(ack),
           );
-          final existingReceipt = await view.read('receipt:${p.messageId}');
           final receiptRow = _row(
             c.id,
             'receipt:${p.messageId}',

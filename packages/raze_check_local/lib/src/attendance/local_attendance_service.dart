@@ -364,7 +364,7 @@ final class LocalAttendanceService implements AttendanceService {
       'delivery': delivery,
       'receivedUtcMs': received,
       'decisionRevision': 0,
-      'flags': flags,
+      'flags': flags.toSet().toList(),
     };
   }
 
@@ -458,7 +458,11 @@ final class LocalAttendanceService implements AttendanceService {
           companyId,
           'attendance-state:${msg.payload.messageId}',
           'attendanceState',
-          _receiptState(msg, delivery: _json(r)['delivery'] as String),
+          _receiptState(
+            msg,
+            delivery: _json(r)['delivery'] as String,
+            flags: (_json(r)['flags'] as List).cast<String>(),
+          ),
         ),
       );
     }
