@@ -13,8 +13,26 @@ class CheckApp extends StatefulWidget {
 }
 
 class _CheckAppState extends State<CheckApp> {
+  late final Future<LocalComposition>? _composition = widget.identity == null
+      ? LocalComposition.open()
+      : null;
   late final Future<IdentityService> _identity =
-      widget.identity ?? createLocalIdentity();
+      widget.identity ?? _composition!.then((services) => services.identity);
+
+  @override
+  void dispose() {
+    final composition = _composition;
+    if (composition != null) {
+      unawaited(
+        composition.then(
+          (services) => services.close(),
+          onError: (Object _, StackTrace _) {},
+        ),
+      );
+    }
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) => MaterialApp(
     title: 'Raze Check',

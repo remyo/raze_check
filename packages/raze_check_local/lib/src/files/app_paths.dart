@@ -7,6 +7,7 @@ import 'package:raze_check_core/raze_check_core.dart';
 final class AppPaths {
   AppPaths(this.root);
   final Directory root;
+  File get database => File('${root.path}/checks.sqlite');
   File get catalog => File('${root.path}/profiles.v1.enc');
   static Future<AppPaths> persistent() async {
     try {
