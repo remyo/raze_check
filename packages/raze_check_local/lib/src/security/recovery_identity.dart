@@ -399,8 +399,8 @@ extension RecoveryIdentityActivation on LocalIdentityService {
     }
   }
 
-  // A creation receipt is inserted in the very same transaction as a NEW
-  // owned company. It is bound to this exact installation, never person ID alone.
+  // A binding receipt is inserted with an authorized new company creation or
+  // exact first membership grant. It binds this installation, not person ID alone.
   Future<LocalProfile> _createdCompanyBindings(
     LocalProfile profile, {
     String? selectedCompany,
@@ -424,7 +424,7 @@ extension RecoveryIdentityActivation on LocalIdentityService {
       late Map data;
       try {
         data = jsonDecode(utf8.decode(receipt.payload)) as Map;
-        if (data['reason'] != 'createdCompany' ||
+        if (!{'createdCompany', 'joinedCompany'}.contains(data['reason']) ||
             data['personId'] != profile.personId ||
             data['installationId'] != profile.installationId ||
             data['publicKey'] != base64UrlEncode(profile.publicKey)) {
@@ -432,9 +432,12 @@ extension RecoveryIdentityActivation on LocalIdentityService {
         }
         final proof = Uint8List.fromList(
           utf8.encode(
-            'RAZE_CHECK_LOCAL_COMPANY_BINDING_V1\n${jsonEncode([companyId, profile.personId, profile.installationId, base64UrlEncode(profile.publicKey), data['operationId'], data['digest'], data['generationId']])}',
+            data['reason'] == 'createdCompany'
+                ? 'RAZE_CHECK_LOCAL_COMPANY_BINDING_V1\n${jsonEncode([companyId, profile.personId, profile.installationId, base64UrlEncode(profile.publicKey), data['operationId'], data['digest'], data['generationId']])}'
+                : 'RAZE_CHECK_LOCAL_ENROLLMENT_BINDING_V1\n${jsonEncode([companyId, profile.personId, profile.installationId, base64UrlEncode(profile.publicKey), data['grantId'], data['requestId'], data['grantHash']])}',
           ),
         );
+
         if (data['signature'] is! String ||
             !await LocalKeyService(keys).verify(
               proof,
@@ -453,6 +456,67 @@ extension RecoveryIdentityActivation on LocalIdentityService {
       final c = Company.fromJson(
         jsonDecode(utf8.decode(row.payload)) as Map<String, dynamic>,
       );
+      if (data['reason'] == 'joinedCompany') {
+        final accepted = await repo.read(
+          companyId,
+          'accepted-grant:${data['grantId']}',
+        );
+        final pending = await repo.read(
+          companyId,
+          'pending-join:${data['requestId']}',
+        );
+        if (accepted == null ||
+            pending == null ||
+            base64UrlEncode((await Sha256().hash(accepted.payload)).bytes) !=
+                data['grantHash']) {
+          throw const CheckException(CheckError.recoveryRequired);
+        }
+        final codec = MessageCodec(),
+            grant = MessageCodec().decode(
+              accepted.payload,
+              maxBytes: MessageLimits.fileBytes,
+            );
+        final request = codec.decode(
+          pending.payload,
+          maxBytes: MessageLimits.fileBytes,
+        );
+        final p = grant.payload;
+        if (grant.kind != MessageKind.membershipGrant ||
+            request.kind != MessageKind.joinRequest ||
+            p.companyId != companyId ||
+            request.payload.companyId != companyId ||
+            p.messageId != data['grantId'] ||
+            request.payload.messageId != data['requestId'] ||
+            p.field<String>('joinOrReplacementRequestId') !=
+                request.payload.messageId ||
+            p.field<String>('personId') != profile.personId ||
+            request.payload.field<String>('personId') != profile.personId ||
+            p.field<String>('installationId') != profile.installationId ||
+            request.payload.field<String>('installationId') !=
+                profile.installationId ||
+            p.field<String>('publicKeyBase64Url') !=
+                base64UrlEncode(profile.publicKey) ||
+            request.payload.field<String>('publicKeyBase64Url') !=
+                base64UrlEncode(profile.publicKey)) {
+          throw const CheckException(CheckError.recoveryRequired);
+        }
+        final authorities = (await repo.listRecords(companyId, 'authority'))
+            .map(
+              (r) => AuthorityCertificate(
+                List<Object?>.from(jsonDecode(utf8.decode(r.payload)) as List),
+              ),
+            )
+            .toList();
+        final trust = TrustContext(
+          companyId: companyId,
+          rootPublicKey: base64Url.decode(c.rootPublicKey),
+          authorities: authorities,
+        );
+        await MessageVerifier(LocalKeyService(keys)).verify(grant, trust);
+        await MessageVerifier(LocalKeyService(keys)).verify(request, trust);
+        additions.add(companyId);
+        continue;
+      }
       if (c.creationPersonId != profile.personId ||
           c.creationOperationId != data['operationId'] ||
           c.creationDigest != data['digest']) {

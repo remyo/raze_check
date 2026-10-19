@@ -284,3 +284,50 @@ Future<void> requireCurrentManagement(Company company, ReadView view) async {
     }
   }
 }
+
+/// Called only after a verified ordinary business transition, in its write
+/// transaction. Historical returns may be accepted but never lower knowledge.
+Future<StoredRecord?> observeBusinessAuthority(
+  String companyId,
+  String personId,
+  AuthorityCertificate authority,
+  ReadView view, {
+  List<AuthorityCertificate> staged = const [],
+}) async {
+  final known = await view.read(authority.generationId);
+  if ((known == null ||
+          known.kind != 'authority' ||
+          utf8.decode(known.payload) != jsonEncode(authority.values)) &&
+      !staged.any(
+        (a) => jsonEncode(a.values) == jsonEncode(authority.values),
+      )) {
+    throw const CheckException(CheckError.unknownIssuer);
+  }
+  final id = 'remote-authority:$personId',
+      prior = await view.read('remote-authority:$personId');
+  if (prior != null) {
+    final previous = AuthorityCertificate(
+      List<Object?>.from(
+        (jsonDecode(utf8.decode(prior.payload)) as Map)['authority'] as List,
+      ),
+    );
+    if (previous.sequence > authority.sequence) return null;
+    if (previous.sequence == authority.sequence) {
+      if (jsonEncode(previous.values) != jsonEncode(authority.values)) {
+        throw const CheckException(CheckError.recoveryRequired);
+      }
+      return null;
+    }
+  }
+  return StoredRecord(
+    id,
+    companyId,
+    'remoteAuthority',
+    (prior?.revision ?? 0) + 1,
+    Uint8List.fromList(
+      utf8.encode(
+        jsonEncode({'personId': personId, 'authority': authority.values}),
+      ),
+    ),
+  );
+}

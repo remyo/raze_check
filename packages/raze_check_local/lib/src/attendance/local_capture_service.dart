@@ -259,19 +259,15 @@ final class LocalCaptureService implements CaptureService {
       ['begin-capture', actor.personId, kind.name, wire],
       (view) async {
         final remoteId = 'remote-authority:${actor.personId}';
-        final remote = await view.read(remoteId);
-        final remoteRows = <StoredRecord>[];
-        final fields = workplace.message.payload.field<List<Object?>>(
-          'authority',
+        final observation = await observeBusinessAuthority(
+          companyId,
+          actor.personId,
+          AuthorityCertificate(
+            workplace.message.payload.field<List<Object?>>('authority'),
+          ),
+          view,
         );
-        if (remote == null ||
-            jsonEncode(_json(remote)['authority']) != jsonEncode(fields)) {
-          remoteRows.add(
-            _row(companyId, remoteId, 'remoteAuthority', {
-              'authority': fields,
-            }, (remote?.revision ?? 0) + 1),
-          );
-        }
+        final remoteRows = <StoredRecord>[?observation];
         final slotId = 'capture-slot:${actor.personId}';
         final slot = await view.read(slotId);
         final previous = slot == null

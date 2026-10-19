@@ -13,6 +13,7 @@ class CheckApp extends StatefulWidget {
   const CheckApp({
     super.key,
     this.identity,
+    this.composition,
     this.companies,
     this.enrollment,
     this.messages,
@@ -20,6 +21,7 @@ class CheckApp extends StatefulWidget {
     this.attendance,
     this.attendanceMessages,
   });
+  final Future<LocalComposition>? composition;
   final Future<IdentityService>? identity;
   final Future<CompanyService>? companies;
   final Future<EnrollmentService>? enrollment;
@@ -45,9 +47,9 @@ class _CheckAppState extends State<CheckApp> {
       sharing: _sharing,
     ),
   );
-  late final Future<LocalComposition>? _composition = widget.identity == null
-      ? LocalComposition.open()
-      : null;
+  late final Future<LocalComposition>? _composition =
+      widget.composition ??
+      (widget.identity == null ? LocalComposition.open() : null);
   late final Future<IdentityService> _identity =
       widget.identity ?? _composition!.then((services) => services.identity);
 
@@ -467,7 +469,7 @@ class _ProfileGateState extends State<_ProfileGate>
         appBar: AppBar(
           title: const Text('Raze Check'),
           actions: [
-            if (widget.onRecovery != null && _canCreateCompany)
+            if (widget.onRecovery != null)
               TextButton(
                 onPressed: () async {
                   await widget.onRecovery!(_session!);

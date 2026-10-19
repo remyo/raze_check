@@ -103,6 +103,13 @@ extension _AttendanceUpdates on LocalAttendanceService {
           final d = _json(prior),
               records = <StoredRecord>[],
               events = <StoredRecord>[];
+          final observation = await observeBusinessAuthority(
+            companyId,
+            actor.personId,
+            AuthorityCertificate(p.field<List<Object?>>('authority')),
+            view,
+          );
+          if (observation != null) records.add(observation);
           if (msg.kind == MessageKind.receiptAck) {
             d['delivery'] = 'received';
             final received = p.field<int>('receivedUtcMs');

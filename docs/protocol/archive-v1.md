@@ -201,3 +201,22 @@ other security-bearing conflict rejects atomically. Active display identity,
 unlock verifier, private keys and authorization are unaffected. This narrow
 public-history merge does not relax byte-exact business record/result/journal
 matching or any archive validation, passive gate or activation proof.
+
+A recovered profile with explicit company bindings can also join a genuinely new
+employer through ordinary enrollment. Its first membership grant must match its
+consented invitation and pending join, current person, installation and public
+key, and the latest accepted authority lineage. Verification of that exact grant
+does not unlock ordinary company access. Acceptance stores a locally signed
+installation binding with the exact grant hash in the same transaction as the
+membership; authenticated unlock can resume interrupted catalog publication.
+The binding adds only the newly joined company and retains existing bindings.
+It is local activation evidence, not a twelfth signed message kind.
+
+An older compatible enrollment trust pin remains immutable during personal
+replacement. The accepted full lineage proves its relationship to the newer
+replacement grant; original pin bytes, journal results and signed receipts are
+retained. Valid business acceptance of workplace codes, membership grants,
+receipt acknowledgments and attendance decisions records monotonically newer
+issuer knowledge in the accepting transaction. Importing public history alone
+never activates that history, and an older return cannot downgrade knowledge or
+rewrite the management Company or historical credential generations.

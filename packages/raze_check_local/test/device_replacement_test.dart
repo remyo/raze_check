@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'receipt_import_test.dart' as attendance;
+import 'authority_fork_test.dart' as lineage;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:raze_check_core/raze_check_core.dart';
 import 'package:raze_check_local/raze_check_local.dart';
@@ -238,6 +239,14 @@ void main() {
                       as Committed<Company>)
                   .value;
         }
+        final savedReceipt = await pair.captureCheckIn();
+        final savedPin = (await pair.staff.storage.repo.read(
+          pair.companyId,
+          'enrollment-trust:${old.personId}',
+        ))!;
+        final savedJournal = (await pair.staff.storage.repo.snapshot(
+          PersonalScope(old.personId),
+        )).journal;
         final outgoing = archive(pair.staff);
         final exported = await outgoing.create(
           pair.staff.session,
@@ -316,6 +325,35 @@ void main() {
           throwsA(isA<CheckException>()),
         );
         await incoming.applyRecoveryPersonal(target.session, preview, draft);
+        final chain = await lineage.descendants(pair, 3);
+        final originalInvite = await pair.manager.enrollment.createInvitation(
+          pair.context('newer-invite'),
+        );
+        final inviteFields = [...originalInvite.payload.values]
+          ..[7] = chain.last.values;
+        final newerInvite = await lineage.sign(
+          pair,
+          MessageKind.invitation,
+          inviteFields,
+        );
+        final invitationService = target.enrollment as InvitationHistoryService;
+        final consent = await invitationService.beginInvitation(
+          target.session,
+          MessageCodec().encode(newerInvite),
+          acceptedRootFingerprint: pair.company.rootFingerprint,
+        );
+        await invitationService.stageHistory(
+          target.session,
+          consent,
+          AuthorityHistoryFile.batches(
+            pair.companyId,
+            pair.company.rootFingerprint,
+            chain,
+          ).single,
+        );
+        await (target.enrollment as RecoveryInvitationService)
+            .bindRecoveryInvitation(target.session, consent, draft);
+
         expect(
           await target.storage.repo.read(
             pair.companyId,
@@ -333,9 +371,16 @@ void main() {
           pair.manager.session,
           MessageCodec().encode(request),
         );
-        final grant = await service(
+        final originalGrant = await service(
           pair.manager,
         ).authorize(pair.context('replace-personal'), verified);
+        final grantFields = [...originalGrant.payload.values]
+          ..[13] = chain.last.values;
+        final grant = await lineage.sign(
+          pair,
+          MessageKind.membershipGrant,
+          grantFields,
+        );
         final returned = await service(target).verifyPendingGrant(
           target.session,
           MessageCodec().encode(grant),
@@ -354,6 +399,35 @@ void main() {
           'new local passphrase',
         );
         expect(await target.canIssueAttendance(pair.companyId), isTrue);
+        expect(
+          (await target.storage.repo.read(
+            pair.companyId,
+            savedReceipt.eventId,
+          ))!.payload,
+          savedReceipt.bytes,
+        );
+        expect(
+          (await target.storage.repo.read(
+            pair.companyId,
+            savedPin.id,
+          ))!.payload,
+          savedPin.payload,
+        );
+        final restoredJournal = (await target.storage.repo.snapshot(
+          PersonalScope(old.personId),
+        )).journal;
+        for (final entry in savedJournal) {
+          expect(
+            restoredJournal.any(
+              (e) =>
+                  e.companyId == entry.companyId &&
+                  e.revision == entry.revision &&
+                  e.operationId == entry.operationId,
+            ),
+            isTrue,
+          );
+        }
+
         expect(
           await target.storage.repo.hasRestoreCommit(exported.artifactId),
           isTrue,

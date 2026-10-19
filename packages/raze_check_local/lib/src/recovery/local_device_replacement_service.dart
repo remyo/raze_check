@@ -477,6 +477,23 @@ final class LocalDeviceReplacementService implements DeviceReplacementService {
             throw const CheckException(CheckError.recoveryRequired);
           }
           final trust = await pendingTrust(session, d, view);
+          final existingPin = await view.read(
+            'enrollment-trust:${d.profile.personId}',
+          );
+          if (existingPin != null) {
+            final pinned = json(existingPin);
+            if (existingPin.kind != 'enrollmentTrust' ||
+                pinned['personId'] != d.profile.personId ||
+                pinned['rootFingerprint'] != d.rootFingerprint ||
+                pinned['rootPublicKey'] !=
+                    base64UrlEncode(trust.rootPublicKey) ||
+                !trust.authorities.any(
+                  (a) =>
+                      jsonEncode(a.values) == jsonEncode(pinned['authority']),
+                )) {
+              throw const CheckException(CheckError.recoveryRequired);
+            }
+          }
           final pinData = <String, dynamic>{
             'personId': d.profile.personId,
             'rootPublicKey': base64UrlEncode(trust.rootPublicKey),
@@ -591,17 +608,15 @@ final class LocalDeviceReplacementService implements DeviceReplacementService {
                 member.revision,
               ),
               receipt = identity.recoveryIdentityReceipt(d);
-          final priorRemote = await view.read(
-            'remote-authority:${member.personId}',
+          final observation = await observeBusinessAuthority(
+            p.companyId,
+            member.personId,
+            authority,
+            view,
+            staged: trust.authorities,
           );
           final rows = <StoredRecord>[
-            row(
-              p.companyId,
-              'remote-authority:${member.personId}',
-              'remoteAuthority',
-              {'personId': member.personId, 'authority': authority.values},
-              (priorRemote?.revision ?? 0) + 1,
-            ),
+            ?observation,
             for (final a in trust.authorities)
               StoredRecord(
                 a.generationId,
@@ -627,12 +642,13 @@ final class LocalDeviceReplacementService implements DeviceReplacementService {
               'membershipIndex',
               {'membershipId': member.id},
             ),
-            row(
-              p.companyId,
-              'enrollment-trust:${member.personId}',
-              'enrollmentTrust',
-              pinData,
-            ),
+            existingPin ??
+                row(
+                  p.companyId,
+                  'enrollment-trust:${member.personId}',
+                  'enrollmentTrust',
+                  pinData,
+                ),
             if (existingCompany == null ||
                 Company.fromJson(
                   json(existingCompany),

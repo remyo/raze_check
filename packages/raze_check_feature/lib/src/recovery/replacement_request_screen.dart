@@ -353,7 +353,7 @@ class _ReplacementApprovalState
   StaffRecord? selected;
   VerifiedMessage? request;
   SignedMessage? grant;
-  bool confirmed = false;
+  bool confirmed = false, exportAllowed = false;
   final pass = TextEditingController(), confirm = TextEditingController();
   @override
   void initState() {
@@ -361,6 +361,14 @@ class _ReplacementApprovalState
     WidgetsBinding.instance.addPostFrameCallback((_) {
       run(() async {
         staff = await widget.service.subjects(session, widget.company.id);
+        final member = await widget.companies.membership(
+          session,
+          widget.company.id,
+        );
+        exportAllowed =
+            member != null &&
+            AccessPolicy.eligible(member, Capability.manageMemberships) &&
+            AccessPolicy.eligible(member, Capability.exportAttendance);
         if (mounted) setState(() {});
       });
     });
@@ -446,28 +454,30 @@ class _ReplacementApprovalState
           'replacement-grant.razecheck-message',
         ),
       ),
-      const Text(
-        'Received-record recovery requires both membership management and attendance export permissions. It excludes company recovery keys, other staff, and records never received by management.',
-      ),
-      field(pass, 'Staff archive passphrase', secret: true),
-      field(confirm, 'Confirm staff archive passphrase', secret: true),
-      button('Export selected staff recovery archive', () async {
-        confirmedPassphrase(pass, confirm);
-        final secret = pass.text;
-        pass.clear();
-        confirm.clear();
-        final artifact = await widget.staffBackups.createStaffRecovery(
-          command(),
-          request!,
-          grant!,
-          secret,
-        );
-        await send(
-          widget.files,
-          await widget.backups.shareBytes(session, artifact.artifactId),
-          'staff-recovery.razecheck-backup',
-        );
-      }),
+      if (exportAllowed) ...[
+        const Text(
+          'Received-record recovery requires both membership management and attendance export permissions. It excludes company recovery keys, other staff, and records never received by management.',
+        ),
+        field(pass, 'Staff archive passphrase', secret: true),
+        field(confirm, 'Confirm staff archive passphrase', secret: true),
+        button('Export selected staff recovery archive', () async {
+          confirmedPassphrase(pass, confirm);
+          final secret = pass.text;
+          pass.clear();
+          confirm.clear();
+          final artifact = await widget.staffBackups.createStaffRecovery(
+            command(),
+            request!,
+            grant!,
+            secret,
+          );
+          await send(
+            widget.files,
+            await widget.backups.shareBytes(session, artifact.artifactId),
+            'staff-recovery.razecheck-backup',
+          );
+        }),
+      ],
     ],
   ]);
 }

@@ -305,6 +305,67 @@ final class LocalEnrollmentService
     _candidates.remove(candidate);
   }
 
+  bool _needsBinding(ActorIdentity actor, String company) =>
+      actor.authorizedCompanyIds != null &&
+      !actor.authorizedCompanyIds!.contains(company);
+
+  /// Narrow exception for an exact pending ordinary first join, never a general
+  /// verifier/read exception for an unbound company's messages.
+  Future<void> _firstGrant(
+    ActorIdentity actor,
+    SignedMessage message,
+    ReadView view,
+  ) async {
+    final p = message.payload;
+    if (actor.restrictedCompanyId != null ||
+        message.kind != MessageKind.membershipGrant ||
+        p.field<int>('membershipRevision') != 1 ||
+        p.field<String>('personId') != actor.personId ||
+        p.field<String>('installationId') != actor.installationId ||
+        p.field<String>('publicKeyBase64Url') !=
+            base64UrlEncode(actor.publicKey)) {
+      throw const CheckException(CheckError.unauthorized);
+    }
+    final pending = await view.read(
+      'pending-join:${p.field<String>('joinOrReplacementRequestId')}',
+    );
+    final pin = await view.read('enrollment-trust:${actor.personId}');
+    if (pending == null || pin == null) {
+      throw const CheckException(CheckError.unauthorized);
+    }
+    final request = _decode(pending);
+    final invite = await view.read(
+      'accepted-invitation:${request.payload.field<String>('invitationId')}:${actor.personId}',
+    );
+    if (request.kind != MessageKind.joinRequest ||
+        request.payload.companyId != p.companyId ||
+        request.payload.field<String>('personId') != actor.personId ||
+        request.payload.field<String>('installationId') !=
+            actor.installationId ||
+        request.payload.field<String>('publicKeyBase64Url') !=
+            base64UrlEncode(actor.publicKey) ||
+        invite == null) {
+      throw const CheckException(CheckError.unauthorized);
+    }
+    final trust = await pinTrust(p.companyId, _json(pin), view);
+    await MessageVerifier(signing).verify(_decode(invite), trust);
+    await MessageVerifier(signing).verify(request, trust);
+    await MessageVerifier(signing).verify(message, trust);
+    final issuer = AuthorityCertificate(p.field<List<Object?>>('authority'));
+    if (trust.authorities.last.generationId != issuer.generationId) {
+      throw const CheckException(CheckError.revokedCredential);
+    }
+    final index = await view.read('member-index:${actor.personId}');
+    if (index != null) {
+      final saved = await view.read('accepted-grant:${p.messageId}');
+      if (saved == null ||
+          base64UrlEncode(saved.payload) !=
+              base64UrlEncode(codec.encode(message))) {
+        throw const CheckException(CheckError.unauthorized);
+      }
+    }
+  }
+
   @override
   Future<VerifiedMessage> verifyIncoming(
     SessionHandle session,
@@ -313,7 +374,16 @@ final class LocalEnrollmentService
     final actor = identity.requireActor(session);
     final message = codec.decode(bytes, maxBytes: MessageLimits.fileBytes);
     final companyId = message.payload.companyId;
-    actor.requireCompany(companyId);
+    if (_needsBinding(actor, companyId)) {
+      _personal(session);
+      await _firstGrant(
+        actor,
+        message,
+        RepositoryReadView(repository, companyId),
+      );
+    } else {
+      actor.requireCompany(companyId);
+    }
     if (actor.restrictedCompanyId != null &&
         actor.restrictedCompanyId != companyId) {
       throw const CheckException(CheckError.wrongCompany);
@@ -803,15 +873,13 @@ final class LocalEnrollmentService
             authority.sequence) {
       throw const CheckException(CheckError.revokedCredential);
     }
-    if (remote == null ||
-        jsonEncode(_json(remote)['authority']) !=
-            jsonEncode(authority.values)) {
-      records.add(
-        _row(p.companyId, remoteId, 'remoteAuthority', {
-          'authority': authority.values,
-        }, (remote?.revision ?? 0) + 1),
-      );
-    }
+    final observation = await observeBusinessAuthority(
+      p.companyId,
+      actor.personId,
+      authority,
+      view,
+    );
+    if (observation != null) records.add(observation);
     final retainedMember = await reuse(memberRow, records);
     final retainedCompany = await reuse(
       _row(p.companyId, company.id, 'company', company.toJson()),
@@ -864,6 +932,43 @@ final class LocalEnrollmentService
       _row(p.companyId, authority.generationId, 'authority', authority.values),
       historyRows,
     );
+    if (_needsBinding(actor, p.companyId)) {
+      final bindingId = 'installation-binding:${actor.installationId}';
+      if (await view.read(bindingId) == null) {
+        final hash = base64UrlEncode(
+          (await Sha256().hash(codec.encode(message))).bytes,
+        );
+        final fields = [
+          p.companyId,
+          actor.personId,
+          actor.installationId,
+          base64UrlEncode(actor.publicKey),
+          p.messageId,
+          request.messageId,
+          hash,
+        ];
+        final signature = await signing.sign(
+          Uint8List.fromList(
+            utf8.encode(
+              'RAZE_CHECK_LOCAL_ENROLLMENT_BINDING_V1\n${jsonEncode(fields)}',
+            ),
+          ),
+          actor.signingKeyId,
+        );
+        records.add(
+          _row(p.companyId, bindingId, 'installationBinding', {
+            'reason': 'joinedCompany',
+            'personId': actor.personId,
+            'installationId': actor.installationId,
+            'publicKey': base64UrlEncode(actor.publicKey),
+            'grantId': p.messageId,
+            'requestId': request.messageId,
+            'grantHash': hash,
+            'signature': base64UrlEncode(signature),
+          }),
+        );
+      }
+    }
     return Mutation(
       records,
       events,
@@ -872,6 +977,8 @@ final class LocalEnrollmentService
       authorityHistory: historyRows,
       personalRecords: [
         PersonalRecordAssociation(actor.personId, remoteId),
+        for (final r in records.where((r) => r.kind == 'installationBinding'))
+          PersonalRecordAssociation(actor.personId, r.id),
         for (final row in [
           retainedMember,
           retainedCompany,
@@ -928,7 +1035,7 @@ final class LocalEnrollmentService
       );
       late Map<String, dynamic> pin;
       late Mutation mutation;
-      return _commit(
+      final result = await _commit<Membership>(
         context,
         [
           'accept-grant',
@@ -938,6 +1045,9 @@ final class LocalEnrollmentService
         (_) async => mutation,
         (view) async {
           _personal(session);
+          if (_needsBinding(actor, p.companyId)) {
+            await _firstGrant(actor, message, view);
+          }
           final pinRow = await view.read('enrollment-trust:${actor.personId}');
           if (pinRow == null) {
             throw const CheckException(CheckError.unknownIssuer);
@@ -991,6 +1101,13 @@ final class LocalEnrollmentService
         },
         (r) => Membership.fromJson(_json(r)),
       );
+      if (result is Committed<Membership> && identity is LocalIdentityService) {
+        await (identity as LocalIdentityService).completeCreatedCompanyBinding(
+          actor,
+          p.companyId,
+        );
+      }
+      return result;
     } on CheckException catch (e) {
       return Rejected(e.code);
     }
@@ -1004,10 +1121,6 @@ final class LocalEnrollmentService
     for (final row in snapshot.records.where(
       (row) => row.kind == 'pendingJoin',
     )) {
-      if (actor.authorizedCompanyIds != null &&
-          !actor.authorizedCompanyIds!.contains(row.companyId)) {
-        continue;
-      }
       final request = _decode(row);
       if (request.payload.field<String>('personId') != actor.personId ||
           request.payload.field<String>('installationId') !=

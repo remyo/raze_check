@@ -48,12 +48,18 @@ class _RecoveryWorkspaceState extends RecoveryState<RecoveryWorkspace> {
   List<Company> companies = [];
   Company? selected;
   Membership? member;
+  bool restricted = true;
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       run(() async {
+        restricted = identity.requireActor(session).restrictedCompanyId != null;
         companies = await widget.companies.listCompanies(session);
+        if (restricted && companies.length == 1) {
+          selected = companies.single;
+          member = await widget.companies.membership(session, selected!.id);
+        }
         if (mounted) setState(() {});
       });
     });
@@ -69,68 +75,73 @@ class _RecoveryWorkspaceState extends RecoveryState<RecoveryWorkspace> {
 
   @override
   Widget build(BuildContext context) => frame('Backup and device recovery', [
-    button('Encrypted backup and passive restore', widget.openBackup),
-    button(
-      'Recover staff identity on this device',
-      () async => open(
-        ReplacementRequestScreen(
-          identity: identity,
-          recoveryIdentity: widget.recoveryIdentity,
-          session: session,
-          enrollment: widget.enrollment,
-          service: widget.replacement,
-          restores: widget.restores,
-          files: widget.files,
-        ),
-      ),
-    ),
-    button(
-      'Activate or recover owner on this device',
-      () async => open(
-        RecoveryUnlockScreen(
-          identity: identity,
-          recoveryIdentity: widget.recoveryIdentity,
-          session: session,
-          replacement: widget.replacement,
-          handover: widget.handover,
-          restores: widget.restores,
-          files: widget.files,
-        ),
-      ),
-    ),
-    DropdownButton<Company>(
-      value: selected,
-      hint: const Text('Select company for export or source actions'),
-      isExpanded: true,
-      items: [
-        for (final c in companies)
-          DropdownMenuItem(value: c, child: Text(c.name)),
-      ],
-      onChanged: busy
-          ? null
-          : (c) => run(() async {
-              final m = await widget.companies.membership(session, c!.id);
-              if (mounted) {
-                setState(() {
-                  selected = c;
-                  member = m;
-                });
-              }
-            }),
-    ),
-    if (selected != null) ...[
+    if (!restricted) ...[
+      button('Encrypted backup and passive restore', widget.openBackup),
       button(
-        'Public authority history',
+        'Recover staff identity on this device',
         () async => open(
-          AuthorityHistoryScreen(
+          ReplacementRequestScreen(
             identity: identity,
+            recoveryIdentity: widget.recoveryIdentity,
             session: session,
-            company: selected!,
-            service: widget.history,
+            enrollment: widget.enrollment,
+            service: widget.replacement,
+            restores: widget.restores,
             files: widget.files,
           ),
         ),
       ),
+      button(
+        'Activate or recover owner on this device',
+        () async => open(
+          RecoveryUnlockScreen(
+            identity: identity,
+            recoveryIdentity: widget.recoveryIdentity,
+            session: session,
+            replacement: widget.replacement,
+            handover: widget.handover,
+            restores: widget.restores,
+            files: widget.files,
+          ),
+        ),
+      ),
+    ],
+    if (restricted && selected != null) Text(selected!.name),
+    if (!restricted)
+      DropdownButton<Company>(
+        value: selected,
+        hint: const Text('Select company for export or source actions'),
+        isExpanded: true,
+        items: [
+          for (final c in companies)
+            DropdownMenuItem(value: c, child: Text(c.name)),
+        ],
+        onChanged: busy
+            ? null
+            : (c) => run(() async {
+                final m = await widget.companies.membership(session, c!.id);
+                if (mounted) {
+                  setState(() {
+                    selected = c;
+                    member = m;
+                  });
+                }
+              }),
+      ),
+    if (selected != null) ...[
+      if (!restricted)
+        button(
+          'Public authority history',
+          () async => open(
+            AuthorityHistoryScreen(
+              identity: identity,
+              session: session,
+              company: selected!,
+              service: widget.history,
+              files: widget.files,
+            ),
+          ),
+        ),
       if (member != null &&
           AccessPolicy.eligible(member!, Capability.manageMemberships))
         button(
@@ -149,7 +160,7 @@ class _RecoveryWorkspaceState extends RecoveryState<RecoveryWorkspace> {
             ),
           ),
         ),
-      if (member?.owner == true)
+      if (!restricted && member?.owner == true)
         button('Resend owner activation acknowledgment', () async {
           final ack = await widget.handover.activationAcknowledgment(
             session,
@@ -165,7 +176,7 @@ class _RecoveryWorkspaceState extends RecoveryState<RecoveryWorkspace> {
             'transfer-ack.razecheck-message',
           );
         }),
-      if (member?.owner == true)
+      if (!restricted && member?.owner == true)
         button(
           'Move this owner device',
           () async => open(
