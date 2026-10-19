@@ -30,7 +30,7 @@ void main() {
       await tester.tap(find.text(label));
       await Future<void>.delayed(const Duration(milliseconds: 400));
     });
-    await tester.pumpAndSettle();
+    await settleEnrollment(tester);
   }
 
   testWidgets(
@@ -62,7 +62,7 @@ void main() {
           );
           await Future<void>.delayed(const Duration(milliseconds: 400));
         });
-        await tester.pumpAndSettle();
+        await settleEnrollment(tester);
       }
 
       await show(pair.manager, managerPort, manager: true);
@@ -145,7 +145,7 @@ void main() {
         );
         await Future<void>.delayed(const Duration(milliseconds: 400));
       });
-      await tester.pumpAndSettle();
+      await settleEnrollment(tester);
       await press(tester, 'Read invitation');
       await tester.tap(find.byType(CheckboxListTile));
       await tester.pump();
@@ -177,7 +177,7 @@ void main() {
         );
         await Future<void>.delayed(const Duration(milliseconds: 400));
       });
-      await tester.pumpAndSettle();
+      await settleEnrollment(tester);
       expect(find.text('Awaiting manager approval'), findsOneWidget);
       port.fail = false;
       await press(tester, 'Send join request again');
@@ -196,4 +196,18 @@ final class FailingSendPort extends FakeMessagePort {
     if (fail) throw StateError('Sharing unavailable');
     await super.send(bytes);
   }
+}
+
+Future<void> settleEnrollment(WidgetTester tester) async {
+  await tester.runAsync(() async {
+    // Render busy before testing it; tap can schedule a frame without pumping.
+    await tester.pump();
+    final until = DateTime.now().add(const Duration(seconds: 10));
+    while (find.byType(LinearProgressIndicator).evaluate().isNotEmpty &&
+        DateTime.now().isBefore(until)) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await tester.pump();
+    }
+  });
+  await tester.pumpAndSettle();
 }

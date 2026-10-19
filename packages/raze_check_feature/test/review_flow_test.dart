@@ -68,6 +68,11 @@ void main() {
       300,
       scrollable: find.byType(Scrollable).first,
     );
+    await Scrollable.ensureVisible(
+      tester.element(find.text('Share selected return')),
+      alignment: 0.5,
+    );
+    await tester.pumpAndSettle();
     await press('Share selected return');
     expect(port.sent, isNotEmpty);
     final returned = MessageCodec().decode(
@@ -86,6 +91,11 @@ void main() {
       250,
       scrollable: find.byType(Scrollable).first,
     );
+    await Scrollable.ensureVisible(
+      tester.element(find.text('Share selected return')),
+      alignment: 0.5,
+    );
+    await tester.pumpAndSettle();
     await press('Share selected return');
     expect(
       MessageCodec()
@@ -181,8 +191,11 @@ void main() {
     final receipt = (await tester.runAsync(p.captureCheckIn))!;
     final port = CapturePort()..delayed = Completer<Uint8List?>();
     await showReview(tester, p, port);
-    await tester.tap(find.text('Import receipt or correction'));
-    await tester.pump();
+    await tester.runAsync(() async {
+      await tester.tap(find.text('Import receipt or correction'));
+      await tester.pump();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+    });
     await tester.pumpWidget(
       const MaterialApp(home: Scaffold(body: Text('Other company'))),
     );

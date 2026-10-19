@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:raze_check_core/raze_check_core.dart';
 import '../profile/profile_commands.dart';
 import 'attendance_detail_screen.dart';
+import 'message_import_sheet.dart';
+import 'scan_screen.dart';
 import 'manual_entry_screen.dart';
 import 'correction_request_screen.dart';
 
@@ -110,16 +112,36 @@ class _ReviewWorkspaceState extends State<ReviewWorkspace> {
     operationId: op,
     authorityGenerationId: widget.company.authorityGenerationId,
   );
+  TransferGuard guard(int e) {
+    final service = widget.service,
+        session = widget.session,
+        company = widget.company;
+    return () async {
+      if (!current(e)) {
+        throw const TransferException(
+          'Return to the original company to continue',
+        );
+      }
+      await service.list(session, company.id);
+      if (!current(e)) {
+        throw const TransferException(
+          'Return to the original company to continue',
+        );
+      }
+    };
+  }
+
   void failure(Object e) {
     if (e is CheckException && e.code == CheckError.locked) {
       widget.onLocked();
       return;
     }
     setState(
-      () => error =
-          e is CheckException &&
-              (e.code == CheckError.recoveryRequired ||
-                  e.code == CheckError.unknownIssuer)
+      () => error = e is TransferException
+          ? transferError(e)
+          : e is CheckException &&
+                (e.code == CheckError.recoveryRequired ||
+                    e.code == CheckError.unknownIssuer)
           ? 'Authority needs review. Accept its verified history before applying this update.'
           : profileError(
               e is CheckException ? e.code : CheckError.storageFailure,
@@ -138,7 +160,7 @@ class _ReviewWorkspaceState extends State<ReviewWorkspace> {
       await work(e);
       if (current(e)) widget.onChanged();
     } catch (ex) {
-      if (current(e)) failure(ex);
+      if (current(e) || (mounted && ex is TransferException)) failure(ex);
     } finally {
       if (current(e)) setState(() => busy = false);
     }
@@ -158,7 +180,7 @@ class _ReviewWorkspaceState extends State<ReviewWorkspace> {
       if (current(e)) subjects = choices;
       if (current(e)) setState(() => records = next);
     } catch (ex) {
-      if (current(e)) failure(ex);
+      if (current(e) || (mounted && ex is TransferException)) failure(ex);
     } finally {
       if (current(e)) setState(() => busy = false);
     }
@@ -222,7 +244,13 @@ class _ReviewWorkspaceState extends State<ReviewWorkspace> {
         company = widget.company,
         original = contextFor(operation),
         port = widget.messages!;
-    final bytes = await port.receive();
+    final bytes = await receiveTransfer(
+      port,
+      widget.canManage
+          ? {MessageKind.attendance, MessageKind.correctionRequest}
+          : {MessageKind.receiptAck, MessageKind.attendanceDecision},
+      guard(e),
+    );
     if (!current(e) || bytes == null) return;
     final incoming = await service.verifyIncoming(session, company.id, bytes);
     if (!current(e)) return;
@@ -364,7 +392,11 @@ class _ReviewWorkspaceState extends State<ReviewWorkspace> {
                     port = widget.messages!;
                 await service.get(session, company.id, id);
                 if (!current(e)) return;
-                await port.send(MessageCodec().encode(original));
+                await sendTransfer(
+                  port,
+                  MessageCodec().encode(original),
+                  guard(e),
+                );
               }),
         onBack: () {
           setState(() => selected = null);

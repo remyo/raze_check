@@ -3,6 +3,8 @@ import 'package:raze_check_core/raze_check_core.dart';
 import '../profile/profile_commands.dart';
 import '../enrollment/invitation_screen.dart';
 import 'receipt_screen.dart';
+import 'message_import_sheet.dart';
+import 'scan_screen.dart';
 import 'receipt_outbox_screen.dart';
 
 /// Kept inside the host's protected session view. Async completions are scoped
@@ -61,15 +63,36 @@ class _CaptureWorkspaceState extends State<CaptureWorkspace> {
   }
 
   bool _current(int epoch) => mounted && epoch == _epoch;
+  TransferGuard _guard(int epoch) {
+    final service = widget.service,
+        session = widget.session,
+        company = widget.company;
+    return () async {
+      if (!_current(epoch)) {
+        throw const TransferException(
+          'Return to the original company to continue',
+        );
+      }
+      await service.currentDraft(session, company.id);
+      if (!_current(epoch)) {
+        throw const TransferException(
+          'Return to the original company to continue',
+        );
+      }
+    };
+  }
+
   void _failure(Object e) {
     if (e is CheckException && e.code == CheckError.locked) {
       widget.onLocked();
       return;
     }
     setState(
-      () => _error = profileError(
-        e is CheckException ? e.code : CheckError.storageFailure,
-      ),
+      () => _error = e is TransferException
+          ? transferError(e)
+          : profileError(
+              e is CheckException ? e.code : CheckError.storageFailure,
+            ),
     );
   }
 
@@ -84,7 +107,7 @@ class _CaptureWorkspaceState extends State<CaptureWorkspace> {
       await action(epoch);
       if (_current(epoch)) widget.onChanged();
     } catch (e) {
-      if (_current(epoch)) _failure(e);
+      if (_current(epoch) || (mounted && e is TransferException)) _failure(e);
     } finally {
       if (_current(epoch)) setState(() => _busy = false);
     }
@@ -110,7 +133,7 @@ class _CaptureWorkspaceState extends State<CaptureWorkspace> {
         });
       }
     } catch (e) {
-      if (_current(epoch)) _failure(e);
+      if (_current(epoch) || (mounted && e is TransferException)) _failure(e);
     } finally {
       if (_current(epoch)) setState(() => _busy = false);
     }
@@ -120,7 +143,9 @@ class _CaptureWorkspaceState extends State<CaptureWorkspace> {
     final service = widget.service,
         session = widget.session,
         company = widget.company;
-    final bytes = await widget.messages!.receive();
+    final bytes = await receiveTransfer(widget.messages!, {
+      MessageKind.workplace,
+    }, _guard(epoch));
     if (!_current(epoch) || bytes == null) return;
     final code = await service.verifyWorkplace(session, company.id, bytes);
     if (!_current(epoch)) return;
@@ -183,7 +208,7 @@ class _CaptureWorkspaceState extends State<CaptureWorkspace> {
   });
 
   Future<void> _share() => _run((epoch) async {
-    await widget.messages!.send(_receipt!.bytes);
+    await sendTransfer(widget.messages!, _receipt!.bytes, _guard(epoch));
   });
   Future<void> _createCode() => _run((epoch) async {
     final context = CommandContext(

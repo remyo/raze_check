@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import '../attendance/message_import_sheet.dart';
+import '../attendance/scan_screen.dart';
 import 'package:raze_check_core/raze_check_core.dart';
 import '../profile/profile_commands.dart';
 import 'invitation_screen.dart';
@@ -129,9 +131,29 @@ class _EnrollmentWorkspaceState extends State<EnrollmentWorkspace> {
     operationId: _operation,
     authorityGenerationId: widget.company!.authorityGenerationId,
   );
+  TransferGuard _guard(int epoch, SessionHandle session) {
+    final service = widget.service, companyId = widget.company?.id;
+    return () async {
+      if (!_current(epoch)) {
+        throw const TransferException(
+          'Return to the original company to continue',
+        );
+      }
+      service.requireTransferSession(session, companyId: companyId);
+      if (!_current(epoch)) {
+        throw const TransferException(
+          'Return to the original company to continue',
+        );
+      }
+    };
+  }
+
+  Future<void> _send(Uint8List bytes, int epoch, SessionHandle session) =>
+      sendTransfer(widget.messages, bytes, _guard(epoch, session));
   Future<void> _run(
     Future<void> Function(int epoch, SessionHandle session) action,
   ) async {
+    if (_busy) return;
     final epoch = _epoch, session = widget.session;
     setState(() {
       _busy = true;
@@ -140,15 +162,17 @@ class _EnrollmentWorkspaceState extends State<EnrollmentWorkspace> {
     try {
       await action(epoch, session);
     } catch (e) {
-      if (!_current(epoch)) return;
+      if (!_current(epoch) && !(mounted && e is TransferException)) return;
       if (e is CheckException && e.code == CheckError.locked) {
         widget.onLocked();
         return;
       }
       setState(
-        () => _error = profileError(
-          e is CheckException ? e.code : CheckError.storageFailure,
-        ),
+        () => _error = e is TransferException
+            ? transferError(e)
+            : profileError(
+                e is CheckException ? e.code : CheckError.storageFailure,
+              ),
       );
     } finally {
       if (_current(epoch)) setState(() => _busy = false);
@@ -163,7 +187,9 @@ class _EnrollmentWorkspaceState extends State<EnrollmentWorkspace> {
     ),
   };
   Future<void> _readInvitation() => _run((epoch, session) async {
-    final bytes = await widget.messages.receive();
+    final bytes = await receiveTransfer(widget.messages, {
+      MessageKind.invitation,
+    }, _guard(epoch, session));
     if (bytes == null || !_current(epoch)) return;
     final candidate = MessageCodec().decode(
       bytes,
@@ -200,10 +226,12 @@ class _EnrollmentWorkspaceState extends State<EnrollmentWorkspace> {
       _candidate = null;
     });
     widget.onChanged();
-    await widget.messages.send(MessageCodec().encode(join));
+    await _send(MessageCodec().encode(join), epoch, session);
   });
   Future<void> _receiveGrant() => _run((epoch, session) async {
-    final bytes = await widget.messages.receive();
+    final bytes = await receiveTransfer(widget.messages, {
+      MessageKind.membershipGrant,
+    }, _guard(epoch, session));
     if (bytes == null || !_current(epoch)) return;
     final verified = await widget.service.verifyIncoming(session, bytes);
     if (!_current(epoch)) return;
@@ -220,7 +248,9 @@ class _EnrollmentWorkspaceState extends State<EnrollmentWorkspace> {
   Future<void> _readJoin() {
     final original = _context();
     return _run((epoch, session) async {
-      final bytes = await widget.messages.receive();
+      final bytes = await receiveTransfer(widget.messages, {
+        MessageKind.joinRequest,
+      }, _guard(epoch, session));
       if (bytes == null || !_current(epoch)) return;
       final verified = await widget.service.verifyIncoming(
         original.session,
@@ -261,7 +291,7 @@ class _EnrollmentWorkspaceState extends State<EnrollmentWorkspace> {
         _review = null;
       });
       widget.onChanged();
-      await widget.messages.send(MessageCodec().encode(grant));
+      await _send(MessageCodec().encode(grant), epoch, session);
     });
   }
 
@@ -302,7 +332,8 @@ class _EnrollmentWorkspaceState extends State<EnrollmentWorkspace> {
             request: _pending,
             onReceive: _receiveGrant,
             onResend: () => _run(
-              (_, _) => widget.messages.send(MessageCodec().encode(_pending!)),
+              (epoch, session) =>
+                  _send(MessageCodec().encode(_pending!), epoch, session),
             ),
           )
         else if (_review != null)
@@ -325,8 +356,10 @@ class _EnrollmentWorkspaceState extends State<EnrollmentWorkspace> {
                 onPressed: _busy
                     ? null
                     : () => _run(
-                        (_, _) => widget.messages.send(
+                        (epoch, session) => _send(
                           MessageCodec().encode(_grant!),
+                          epoch,
+                          session,
                         ),
                       ),
                 child: const Text('Send membership again'),
@@ -339,8 +372,8 @@ class _EnrollmentWorkspaceState extends State<EnrollmentWorkspace> {
             message: _invitation!,
             busy: _busy,
             onSend: () => _run(
-              (_, _) =>
-                  widget.messages.send(MessageCodec().encode(_invitation!)),
+              (epoch, session) =>
+                  _send(MessageCodec().encode(_invitation!), epoch, session),
             ),
           ),
         if (widget.canManage && widget.company != null) ...[

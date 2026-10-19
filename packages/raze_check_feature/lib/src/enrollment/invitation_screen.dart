@@ -1,6 +1,5 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:qr_flutter/qr_flutter.dart';
+import '../attendance/message_qr.dart';
 import 'package:raze_check_core/raze_check_core.dart';
 
 class EnrollmentMessageView extends StatelessWidget {
@@ -9,9 +8,9 @@ class EnrollmentMessageView extends StatelessWidget {
   @override
   Widget build(BuildContext context) => MessageCodec().fitsQr(message)
       ? SizedBox(
-          width: 250,
-          height: 250,
-          child: QrImageView(data: utf8.decode(MessageCodec().encode(message))),
+          width: 320,
+          height: 320,
+          child: ExactMessageQr(bytes: MessageCodec().encode(message)),
         )
       : const Text(
           'This message needs file transfer. Use Send to share the complete message.',

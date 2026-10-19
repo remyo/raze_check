@@ -15,3 +15,6 @@ export 'src/company/local_company_service.dart';
 export 'src/company/local_enrollment_service.dart';
 export 'src/attendance/local_capture_service.dart';
 export 'src/attendance/local_attendance_service.dart';
+export 'src/platform/document_port.dart';
+export 'src/platform/mobile_qr_port.dart';
+export 'src/platform/share_port.dart';

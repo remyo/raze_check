@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:raze_check_core/raze_check_core.dart';
 import 'package:raze_check_feature/raze_check_feature.dart';
 import 'local_composition.dart';
+import 'native_transfer.dart';
+import 'package:raze_check_local/raze_check_local.dart';
 
 /// Standalone composition entry; reusable features live in their own package.
 class CheckApp extends StatefulWidget {
@@ -28,6 +30,19 @@ class CheckApp extends StatefulWidget {
 }
 
 class _CheckAppState extends State<CheckApp> {
+  final _navigator = GlobalKey<NavigatorState>();
+  final _documents = DocumentPort();
+  final _sharing = SharePort();
+  late final _messages = FeatureMessagePort(
+    context: () => _navigator.currentContext!,
+    create: (guard) => NativeTransfer(
+      context: () => _navigator.currentContext!,
+      guard: guard,
+      documents: _documents,
+      qr: MobileQrPort(_documents),
+      sharing: _sharing,
+    ),
+  );
   late final Future<LocalComposition>? _composition = widget.identity == null
       ? LocalComposition.open()
       : null;
@@ -69,6 +84,7 @@ class _CheckAppState extends State<CheckApp> {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
+    navigatorKey: _navigator,
     title: 'Raze Check',
     debugShowCheckedModeBanner: false,
     theme: ThemeData(
@@ -167,11 +183,15 @@ class _CheckAppState extends State<CheckApp> {
                         return _ProfileGate(
                           attendance: attendance.data,
                           capture: capture.data,
-                          attendanceMessages: widget.attendanceMessages,
+                          attendanceMessages:
+                              widget.attendanceMessages ??
+                              (_composition == null ? null : _messages),
                           identity: snapshot.data!,
                           companies: companies.data,
                           enrollment: enrollment.data,
-                          messages: widget.messages,
+                          messages:
+                              widget.messages ??
+                              (_composition == null ? null : _messages),
                         );
                       },
                     );

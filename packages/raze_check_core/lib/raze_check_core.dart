@@ -37,3 +37,4 @@ export 'src/attendance/correction_service.dart';
 export 'src/attendance/update_service.dart';
 export 'src/attendance/review_models.dart';
 export 'src/attendance/attendance_service.dart';
+export 'src/contracts/transfer_port.dart';

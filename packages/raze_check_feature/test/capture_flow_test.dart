@@ -122,8 +122,11 @@ void main() {
         () async => MessageCodec().encode((await pair.workplace()).message),
       );
       await show(tester, port);
-      await tester.tap(find.text('Check in'));
-      await tester.pump();
+      await tester.runAsync(() async {
+        await tester.tap(find.text('Check in'));
+        await tester.pump();
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      });
       await tester.pumpWidget(
         const MaterialApp(home: Scaffold(body: Text('Other company'))),
       );

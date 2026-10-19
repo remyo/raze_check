@@ -10,6 +10,11 @@ import 'company_models.dart';
 /// The caller must display and explicitly confirm the full root fingerprint
 /// (a short prefix may be shown beside it) before calling acceptInvitation.
 abstract interface class EnrollmentService {
+  /// Revalidate the original live handle before/after native transfer. This
+  /// permits company-restricted management operators only for their company;
+  /// command services still authorize every actual enrollment mutation.
+  void requireTransferSession(SessionHandle session, {String? companyId});
+
   Future<SignedMessage> createInvitation(CommandContext context);
   Future<VerifiedMessage> acceptInvitation(
     SessionHandle session,

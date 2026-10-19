@@ -53,6 +53,15 @@ final class LocalEnrollmentService implements EnrollmentService {
     return actor;
   }
 
+  @override
+  void requireTransferSession(SessionHandle session, {String? companyId}) {
+    final actor = identity.requireActor(session);
+    if (actor.restrictedCompanyId != null &&
+        actor.restrictedCompanyId != companyId) {
+      throw const CheckException(CheckError.wrongCompany);
+    }
+  }
+
   void _live(SessionHandle session) => identity.requireActor(session);
   void _activity(SessionHandle session) {
     if (identity case final ActivityIdentityService activity) {
