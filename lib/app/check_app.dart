@@ -12,11 +12,15 @@ class CheckApp extends StatefulWidget {
     this.companies,
     this.enrollment,
     this.messages,
+    this.capture,
+    this.attendanceMessages,
   });
   final Future<IdentityService>? identity;
   final Future<CompanyService>? companies;
   final Future<EnrollmentService>? enrollment;
   final EnrollmentMessagePort? messages;
+  final Future<CaptureService>? capture;
+  final AttendanceMessagePort? attendanceMessages;
   @override
   State<CheckApp> createState() => _CheckAppState();
 }
@@ -36,6 +40,11 @@ class _CheckAppState extends State<CheckApp> {
   late final Future<EnrollmentService?> _enrollment =
       widget.enrollment ??
       (_composition?.then((services) => services.enrollment) ??
+          Future.value(null));
+
+  late final Future<CaptureService?> _capture =
+      widget.capture ??
+      (_composition?.then((services) => services.capture) ??
           Future.value(null));
 
   @override
@@ -118,11 +127,30 @@ class _CheckAppState extends State<CheckApp> {
                     body: Center(child: CircularProgressIndicator()),
                   );
                 }
-                return _ProfileGate(
-                  identity: snapshot.data!,
-                  companies: companies.data,
-                  enrollment: enrollment.data,
-                  messages: widget.messages,
+                return FutureBuilder<CaptureService?>(
+                  future: _capture,
+                  builder: (context, capture) {
+                    if (capture.hasError) {
+                      return const Scaffold(
+                        body: Center(
+                          child: Text('Could not open attendance storage.'),
+                        ),
+                      );
+                    }
+                    if (capture.connectionState != ConnectionState.done) {
+                      return const Scaffold(
+                        body: Center(child: CircularProgressIndicator()),
+                      );
+                    }
+                    return _ProfileGate(
+                      capture: capture.data,
+                      attendanceMessages: widget.attendanceMessages,
+                      identity: snapshot.data!,
+                      companies: companies.data,
+                      enrollment: enrollment.data,
+                      messages: widget.messages,
+                    );
+                  },
                 );
               },
             );
@@ -139,11 +167,15 @@ class _ProfileGate extends StatefulWidget {
     this.companies,
     this.enrollment,
     this.messages,
+    this.capture,
+    this.attendanceMessages,
   });
   final IdentityService identity;
   final CompanyService? companies;
   final EnrollmentService? enrollment;
   final EnrollmentMessagePort? messages;
+  final CaptureService? capture;
+  final AttendanceMessagePort? attendanceMessages;
   @override
   State<_ProfileGate> createState() => _ProfileGateState();
 }
@@ -253,6 +285,8 @@ class _ProfileGateState extends State<_ProfileGate>
             : CompanyWorkspace(
                 companies: widget.companies!,
                 enrollment: widget.enrollment,
+                capture: widget.capture,
+                attendanceMessages: widget.attendanceMessages,
                 messages: widget.messages,
                 session: _session!,
                 ids: SecureIds(),

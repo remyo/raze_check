@@ -11,6 +11,7 @@ final class EnrollmentDevice {
   late LocalIdentityService identity;
   late CompanyService companies;
   late EnrollmentService enrollment;
+  late CaptureService capture;
   late SessionHandle session;
   static Future<EnrollmentDevice> create(FakeClock clock, String name) async {
     final d = EnrollmentDevice._(await RepositoryFixture.open(), clock);
@@ -35,6 +36,14 @@ final class EnrollmentDevice {
       clock: clock,
       ids: SecureIds(),
     );
+    d.capture = LocalCaptureService(
+      repository: d.storage.repo,
+      identity: d.identity,
+      keys: d.storage.keys,
+      clock: clock,
+      ids: SecureIds(),
+      offsetMinutes: () => 540,
+    );
     d.session = await d.identity.createProfile(
       name,
       'a strong local passphrase',
@@ -42,7 +51,16 @@ final class EnrollmentDevice {
     return d;
   }
 
+  Future<int> eventCount() => storage.count('attendance');
   void rebuildServices() {
+    capture = LocalCaptureService(
+      repository: storage.repo,
+      identity: identity,
+      keys: storage.keys,
+      clock: clock,
+      ids: SecureIds(),
+      offsetMinutes: () => 540,
+    );
     companies = LocalCompanyService(
       repository: storage.repo,
       identity: identity,
@@ -157,6 +175,65 @@ final class TwoDeviceFixture {
     );
   }
 
+  Future<VerifiedMessage> workplace() async {
+    final signed = await manager.capture.createWorkplaceCode(
+      context('workplace'),
+    );
+    return staff.capture.verifyWorkplace(
+      staff.session,
+      companyId,
+      MessageCodec().encode(signed),
+    );
+  }
+
+  Future<AttendanceReceipt> captureCheckIn() => capture(PunchKind.checkIn);
+  Future<AttendanceReceipt> capture(
+    PunchKind kind, {
+    bool newPunch = false,
+  }) async {
+    if (newPunch) {
+      final old = await staff.capture.currentDraft(staff.session, companyId);
+      await staff.capture.finishDraft(staff.session, companyId, old!.eventId!);
+    }
+    final code = await workplace();
+    final draft = await staff.capture.beginDraft(
+      staff.session,
+      companyId,
+      code,
+      kind,
+    );
+    return (await staff.capture.recordPunch(
+              draft.context(staff.session),
+              code,
+              kind,
+            )
+            as Committed<AttendanceReceipt>)
+        .value;
+  }
+
+  Future<void> restartStaff() async {
+    staff.identity.lock();
+    await staff.storage.reopen();
+    staff.identity = LocalIdentityService(
+      keys: staff.storage.keys,
+      catalog: ProfileCatalog(
+        paths: staff.storage.paths,
+        keys: staff.storage.keys,
+      ),
+      clock: staff.clock,
+      ids: SecureIds(),
+      repository: staff.storage.repo,
+    );
+    final profile = (await staff.identity.profiles()).first;
+    staff.session = await staff.identity.unlock(
+      profile.personId,
+      'a strong local passphrase',
+    );
+    staff.rebuildServices();
+  }
+
+  Future<AttendanceReceipt> exportReceipt(String eventId) =>
+      staff.capture.getReceipt(staff.session, companyId, eventId);
   Future<void> dispose() async {
     manager.identity.lock();
     staff.identity.lock();

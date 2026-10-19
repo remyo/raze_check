@@ -28,3 +28,6 @@ export 'src/messaging/message_codec.dart';
 export 'src/messaging/message_verifier.dart';
 export 'src/messaging/message_limits.dart';
 export 'src/company/enrollment_service.dart';
+export 'src/attendance/attendance_models.dart';
+export 'src/attendance/attendance_exceptions.dart';
+export 'src/attendance/capture_service.dart';

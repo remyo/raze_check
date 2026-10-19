@@ -6,6 +6,7 @@ import '../team/operator_access_screen.dart';
 import '../team/staff_detail_screen.dart';
 import '../team/staff_list_screen.dart';
 import 'company_setup_screen.dart';
+import '../attendance/capture_screen.dart';
 
 class CompanySwitcher extends StatelessWidget {
   const CompanySwitcher({
@@ -57,10 +58,14 @@ class CompanyWorkspace extends StatefulWidget {
     this.canCreateCompany = true,
     this.enrollment,
     this.messages,
+    this.capture,
+    this.attendanceMessages,
   });
   final CompanyService companies;
   final EnrollmentService? enrollment;
   final EnrollmentMessagePort? messages;
+  final CaptureService? capture;
+  final AttendanceMessagePort? attendanceMessages;
   final bool canCreateCompany;
   final SessionHandle session;
   final IdGenerator ids;
@@ -83,7 +88,7 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
       _operator = false;
   StaffRecord? _editing;
   String? _error;
-  bool _enrolling = false;
+  bool _enrolling = false, _capturing = false;
   int _generation = 0;
   late String _operation;
   @override
@@ -99,6 +104,7 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
     if (!identical(old.session, widget.session)) {
       _generation++;
       _enrolling = false;
+      _capturing = false;
       _selected = null;
       _draft = false;
       _setup = false;
@@ -205,6 +211,7 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
     setState(() {
       _generation++;
       _enrolling = false;
+      _capturing = false;
       _selected = company;
       _draft = false;
       _setup = false;
@@ -219,6 +226,8 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
 
   void _newDraft({StaffRecord? staff, bool setup = false}) => setState(() {
     _operation = widget.ids.next();
+    _capturing = false;
+    _enrolling = false;
     _setup = setup;
     _draft = !setup;
     _operator = false;
@@ -290,10 +299,23 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
     }
   }
 
-  void _openEnrollment() => setState(() => _enrolling = true);
+  void _openEnrollment() => setState(() {
+    _capturing = false;
+    _enrolling = true;
+  });
   @override
   Widget build(BuildContext context) => Column(
     children: [
+      if (widget.capture != null &&
+          _selected != null &&
+          widget.canCreateCompany)
+        TextButton(
+          onPressed: () => setState(() {
+            _enrolling = false;
+            _capturing = true;
+          }),
+          child: const Text('Attendance and receipts'),
+        ),
       if (widget.enrollment != null && widget.messages != null)
         TextButton(
           onPressed: _openEnrollment,
@@ -331,6 +353,29 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
   );
   Widget _body() {
     if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_capturing && widget.capture != null && _selected != null) {
+      return Column(
+        children: [
+          TextButton(
+            onPressed: () => setState(() => _capturing = false),
+            child: const Text('Back to company'),
+          ),
+          Expanded(
+            child: CaptureWorkspace(
+              key: ValueKey('capture-${_selected!.id}'),
+              service: widget.capture!,
+              session: widget.session,
+              company: _selected!,
+              ids: widget.ids,
+              messages: widget.attendanceMessages,
+              canCreateCode: _owner,
+              onChanged: widget.onAuthorizedActivity,
+              onLocked: widget.onLocked,
+            ),
+          ),
+        ],
+      );
+    }
     if (_enrolling && widget.enrollment != null && widget.messages != null) {
       return Column(
         children: [

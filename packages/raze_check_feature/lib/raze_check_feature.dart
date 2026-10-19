@@ -14,3 +14,6 @@ export 'src/enrollment/membership_status_screen.dart';
 export 'src/enrollment/invitation_screen.dart';
 export 'src/enrollment/join_company_screen.dart';
 export 'src/enrollment/join_review_screen.dart';
+export 'src/attendance/capture_screen.dart';
+export 'src/attendance/receipt_screen.dart';
+export 'src/attendance/receipt_outbox_screen.dart';
