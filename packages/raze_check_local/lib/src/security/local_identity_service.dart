@@ -8,7 +8,7 @@ import 'profile_catalog.dart';
 import 'secure_key_store.dart';
 
 // KDF runs in a worker isolate: never lower the work factor to keep UI responsive.
-Future<Uint8List> _verifier(String passphrase, Uint8List salt) =>
+Future<Uint8List> operatorVerifier(String passphrase, Uint8List salt) =>
     Isolate.run(() async {
       final kdf = Pbkdf2(
         macAlgorithm: Hmac.sha256(),
@@ -30,17 +30,20 @@ final class _LocalSession implements SessionHandle {
 }
 
 /// Serializes identity mutations and issues non-serializable live capabilities.
-final class LocalIdentityService implements IdentityService {
+final class LocalIdentityService
+    implements IdentityService, ActivityIdentityService {
   LocalIdentityService({
     required this.keys,
     required this.catalog,
     required this.clock,
     required this.ids,
+    this.repository,
   });
   final SecureKeyStore keys;
   final ProfileCatalog catalog;
   final CheckClock clock;
   final IdGenerator ids;
+  final CheckRepository? repository;
   final _live = Map<SessionHandle, _LocalSession>.identity();
   int _epoch = 0;
   static final _mutatingCatalogs = <String>{};
@@ -62,9 +65,99 @@ final class LocalIdentityService implements IdentityService {
       lock();
       throw const CheckException(CheckError.locked);
     }
-    active.lastActivity = now;
     return active.actor;
   }
+
+  @override
+  Duration remainingIdleTime(SessionHandle session) {
+    requireActor(session);
+    return const Duration(minutes: 5) -
+        clock.nowUtc().difference(_live[session]!.lastActivity);
+  }
+
+  @override
+  void recordActivity(SessionHandle session) {
+    requireActor(session);
+    _live[session]!.lastActivity = clock.nowUtc();
+  }
+
+  /// Own company credential; never reads or overwrites personal credentials.
+  Future<SessionHandle> unlockOperator(
+    String companyId,
+    String membershipId,
+    String passphrase,
+  ) => _exclusive((epoch) async {
+    final repo = repository;
+    if (repo == null) throw const CheckException(CheckError.invalidTransition);
+    final row = await repo.read(companyId, 'operator:$membershipId');
+    final memberRow = await repo.read(companyId, membershipId);
+    if (row == null || memberRow == null) {
+      throw const CheckException(CheckError.unauthorized);
+    }
+    final member = Membership.fromJson(
+      jsonDecode(utf8.decode(memberRow.payload)) as Map<String, dynamic>,
+    );
+    if (!member.active) {
+      throw const CheckException(CheckError.revokedCredential);
+    }
+    final j = jsonDecode(utf8.decode(row.payload)) as Map<String, dynamic>;
+    if (j['companyId'] != companyId ||
+        j['membershipId'] != membershipId ||
+        j['personId'] != member.personId) {
+      throw const CheckException(CheckError.wrongCompany);
+    }
+    final derived = await operatorVerifier(
+      passphrase,
+      base64Decode(j['salt'] as String),
+    );
+    final expected = base64Decode(j['verifier'] as String);
+    if (expected.length != 32) {
+      throw const CheckException(CheckError.recoveryRequired);
+    }
+    var diff = 0;
+    for (var i = 0; i < 32; i++) {
+      diff |= derived[i] ^ expected[i];
+    }
+    if (diff != 0) throw const CheckException(CheckError.wrongSecret);
+    final keyId = j['signingKeyId'] as String;
+    final publicKey = base64Url.decode(j['publicKey'] as String);
+    final probe = Uint8List.fromList(
+      utf8.encode('RAZE_CHECK_OPERATOR_UNLOCK_V1'),
+    );
+    final signing = LocalKeyService(keys);
+    if (!await signing.verify(
+      probe,
+      await signing.sign(probe, keyId),
+      publicKey,
+    )) {
+      throw const CheckException(CheckError.recoveryRequired);
+    }
+    // Recheck persisted authorization after the expensive KDF.
+    final fresh = await repo.read(companyId, membershipId);
+    final credential = await repo.read(companyId, 'operator:$membershipId');
+    if (fresh == null ||
+        credential?.revision != row.revision ||
+        !Membership.fromJson(
+          jsonDecode(utf8.decode(fresh.payload)) as Map<String, dynamic>,
+        ).active) {
+      throw const CheckException(CheckError.revokedCredential);
+    }
+    if (_epoch != epoch) throw const CheckException(CheckError.locked);
+    _live.clear();
+    final session = _LocalSession(
+      ActorIdentity(
+        personId: member.personId,
+        installationId: j['installationId'] as String,
+        signingKeyId: keyId,
+        publicKey: publicKey,
+        restrictedCompanyId: companyId,
+        restrictedMembershipId: membershipId,
+      ),
+      clock.nowUtc(),
+    );
+    _live[session] = session;
+    return session;
+  });
 
   SessionHandle _issue(LocalProfile p, int epoch) {
     if (_epoch != epoch) throw const CheckException(CheckError.locked);
@@ -126,7 +219,7 @@ final class LocalIdentityService implements IdentityService {
     var committed = false;
     try {
       final salt = secureRandomBytes(16);
-      final derived = await _verifier(passphrase, salt);
+      final derived = await operatorVerifier(passphrase, salt);
       if (_epoch != epoch) throw const CheckException(CheckError.locked);
       allocated.add('vault:$person');
       await VaultKeys(keys).create(person);
@@ -184,7 +277,7 @@ final class LocalIdentityService implements IdentityService {
     if (credential[0] != 1) {
       throw const CheckException(CheckError.unsupportedVersion);
     }
-    final derived = await _verifier(
+    final derived = await operatorVerifier(
       passphrase,
       Uint8List.fromList(credential.sublist(1, 17)),
     );

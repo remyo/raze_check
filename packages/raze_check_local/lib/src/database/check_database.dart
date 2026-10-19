@@ -21,11 +21,17 @@ class CheckDatabase extends _$CheckDatabase {
   CheckDatabase.open(AppPaths paths)
     : super(NativeDatabase.createInBackground(paths.database));
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+  Future<void> _createReservations() => customStatement('''
+    CREATE TABLE company_creation_reservations(
+      person_id TEXT NOT NULL, operation_id TEXT NOT NULL, company_id TEXT NOT NULL UNIQUE,
+      authority_generation_id TEXT NOT NULL, body BLOB NOT NULL, PRIMARY KEY(person_id, operation_id))
+  ''');
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) async {
       await m.createAll();
+      await _createReservations();
       await customStatement(
         "CREATE INDEX stored_kind ON stored_rows(company_id, kind)",
       );
@@ -42,9 +48,11 @@ class CheckDatabase extends _$CheckDatabase {
       }
     },
     onUpgrade: (m, from, to) async {
-      // Add explicit, transactional version steps here for future schemas.
-      // Never drop/reset data to make an unknown schema appear usable.
-      throw const CheckException(CheckError.unsupportedVersion);
+      if (from == 1 && to == 2) {
+        await _createReservations();
+      } else {
+        throw const CheckException(CheckError.unsupportedVersion);
+      }
     },
     beforeOpen: (details) async {
       if (details.versionBefore != null &&

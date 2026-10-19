@@ -168,10 +168,14 @@ final class LogicalSnapshot {
 abstract interface class CheckRepository {
   /// Digest is SHA-256 of normalized caller intent, excluding regenerated IDs,
   /// timestamps and signatures. A retry never executes [build] again.
+  /// [beforeCommit] runs synchronously after all mutation work, immediately
+  /// before transaction acceptance (and after replay decryption). Throwing
+  /// rejects/rolls back. A later lock cannot cancel an accepted SQL commit.
   Future<CommandResult<StoredRecord>> commit(
     CommandContext context, {
     required Uint8List requestDigest,
     required Future<Mutation> Function(ReadView) build,
+    void Function()? beforeCommit,
   });
 
   /// Persist an operation ID before queuing UI work. Builders must still be

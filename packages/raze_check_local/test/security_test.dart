@@ -76,9 +76,9 @@ void main() {
         throwsCheckError(CheckError.locked),
       );
       clock.advance(const Duration(minutes: 4));
-      identity.requireActor(session);
+      identity.recordActivity(session);
       clock.advance(const Duration(minutes: 4));
-      identity.requireActor(session);
+      identity.recordActivity(session);
       clock.advance(const Duration(minutes: 5));
       expect(
         () => identity.requireActor(session),
@@ -87,6 +87,22 @@ void main() {
       clock.now = DateTime.utc(2026, 10, 19);
       expect(
         () => identity.requireActor(session),
+        throwsCheckError(CheckError.locked),
+      );
+    },
+  );
+  test(
+    'authorization checks do not extend idle time; successful activity does',
+    () async {
+      final session = await identity.createProfile('Alice', pass);
+      clock.advance(const Duration(minutes: 4));
+      identity.requireActor(session);
+      expect(identity.remainingIdleTime(session), const Duration(minutes: 1));
+      identity.recordActivity(session);
+      expect(identity.remainingIdleTime(session), const Duration(minutes: 5));
+      clock.advance(const Duration(minutes: 5));
+      expect(
+        () => identity.recordActivity(session),
         throwsCheckError(CheckError.locked),
       );
     },

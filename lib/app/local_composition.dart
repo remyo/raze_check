@@ -9,17 +9,21 @@ final class LocalComposition {
     required this.vaultKeys,
     required this.attachments,
     required this.signingKeys,
+    required this.companies,
   });
   final IdentityService identity;
   final LocalCheckRepository repository;
   final VaultKeys vaultKeys;
   final ImmutableAttachmentStore attachments;
   final KeyService signingKeys;
+  final CompanyService companies;
 
   static Future<LocalComposition> open({
     AppPaths? paths,
     SecureKeyStore? secureKeys,
+    CheckClock? clock,
   }) async {
+    final localClock = clock ?? SystemCheckClock();
     final localPaths = paths ?? await AppPaths.persistent();
     final keys = secureKeys ?? OsSecureKeyStore();
     final vault = VaultKeys(keys);
@@ -29,11 +33,20 @@ final class LocalComposition {
       cipher: cipher,
     );
     try {
+      final identity = LocalIdentityService(
+        keys: keys,
+        catalog: ProfileCatalog(paths: localPaths, keys: keys),
+        clock: localClock,
+        ids: SecureIds(),
+        repository: repository,
+      );
       return LocalComposition._(
-        identity: LocalIdentityService(
+        identity: identity,
+        companies: LocalCompanyService(
+          repository: repository,
+          identity: identity,
           keys: keys,
-          catalog: ProfileCatalog(paths: localPaths, keys: keys),
-          clock: SystemCheckClock(),
+          clock: localClock,
           ids: SecureIds(),
         ),
         repository: repository,

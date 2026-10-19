@@ -279,6 +279,7 @@ final class LocalCheckRepository implements CheckRepository {
     CommandContext context, {
     required Uint8List requestDigest,
     required Future<Mutation> Function(ReadView) build,
+    void Function()? beforeCommit,
   }) {
     final digest = Uint8List.fromList(requestDigest);
     return _exclusive(() async {
@@ -292,6 +293,7 @@ final class LocalCheckRepository implements CheckRepository {
           if (existing != null) {
             _checkReplay(existing, context, digest);
             if (existing.result != null) {
+              beforeCommit?.call();
               return Committed(existing.result!, existing.revision!, true);
             }
           }
@@ -409,6 +411,7 @@ final class LocalCheckRepository implements CheckRepository {
             variables: [_i(next), _s(context.companyId)],
             updates: {_db.companyScopes},
           );
+          beforeCommit?.call();
           return Committed(mutation.result, next, false);
         });
       } on CheckException catch (error) {
@@ -748,6 +751,114 @@ final class LocalCheckRepository implements CheckRepository {
     row['revision'] as int,
     base64Decode(row['payload'] as String),
   );
+  Future<List<StoredRecord>> listRecords(
+    String companyId,
+    String kind,
+  ) => _exclusive(
+    () => _storage(() async {
+      final rows = await _db
+          .customSelect(
+            'SELECT * FROM stored_rows WHERE company_id = ? AND kind = ? ORDER BY id',
+            variables: [_s(companyId), _s(kind)],
+          )
+          .get();
+      return List.unmodifiable(await Future.wait(rows.map(_decodeRecord)));
+    }),
+  );
+
+  /// Routing only; callers must resolve and authorize each company membership.
+  Future<List<String>> listCompanyIds() => _exclusive(
+    () => _storage(
+      () async =>
+          (await _db
+                  .customSelect(
+                    'SELECT company_id FROM company_scopes ORDER BY company_id',
+                  )
+                  .get())
+              .map((r) => r.read<String>('company_id'))
+              .toList(growable: false),
+    ),
+  );
+
+  /// Allocates a random company exactly once before its encrypted vault exists.
+  /// The intent digest is encrypted using the already provisioned personal vault.
+  Future<CompanyCreationReservation> reserveCompanyCreation({
+    required String personId,
+    required String operationId,
+    required Uint8List requestDigest,
+    required IdGenerator ids,
+  }) => _exclusive(
+    () => _storage(() async {
+      if (personId.isEmpty ||
+          operationId.isEmpty ||
+          requestDigest.length != 32) {
+        throw const CheckException(CheckError.malformed);
+      }
+      return _db.transaction(() async {
+        final old = await _db
+            .customSelect(
+              'SELECT company_id, authority_generation_id, body FROM company_creation_reservations WHERE person_id = ? AND operation_id = ?',
+              variables: [_s(personId), _s(operationId)],
+            )
+            .getSingleOrNull();
+        if (old != null) {
+          final body =
+              jsonDecode(
+                    utf8.decode(
+                      await _payloadCipher.open(
+                        scopeId: personId,
+                        recordId: 'company-reservation:$operationId',
+                        revision: 1,
+                        sealed: old.read<Uint8List>('body'),
+                      ),
+                    ),
+                  )
+                  as Map<String, dynamic>;
+          if (body['companyId'] != old.read<String>('company_id') ||
+              body['authorityGenerationId'] !=
+                  old.read<String>('authority_generation_id')) {
+            throw const CheckException(CheckError.invalidSignature);
+          }
+          final digest = base64Decode(body['requestDigest'] as String);
+          if (!_sameBytes(digest, requestDigest)) {
+            throw const CheckException(CheckError.duplicateConflict);
+          }
+          return CompanyCreationReservation(
+            old.read<String>('company_id'),
+            old.read<String>('authority_generation_id'),
+          );
+        }
+        final companyId = ids.next();
+        final generationId = ids.next();
+        final body = await _payloadCipher.seal(
+          scopeId: personId,
+          recordId: 'company-reservation:$operationId',
+          revision: 1,
+          plain: Uint8List.fromList(
+            utf8.encode(
+              jsonEncode({
+                'companyId': companyId,
+                'authorityGenerationId': generationId,
+                'requestDigest': base64Encode(requestDigest),
+              }),
+            ),
+          ),
+        );
+        await _db.customInsert(
+          'INSERT INTO company_creation_reservations(person_id, operation_id, company_id, authority_generation_id, body) VALUES(?, ?, ?, ?, ?)',
+          variables: [
+            _s(personId),
+            _s(operationId),
+            _s(companyId),
+            _s(generationId),
+            _b(body),
+          ],
+        );
+        return CompanyCreationReservation(companyId, generationId);
+      });
+    }),
+  );
+
   Future<void> close() => _exclusive(_db.close);
 }
 
@@ -804,4 +915,10 @@ final class _SnapshotBudget {
 
   void addBytes(int size) => reserve(size, 0);
   void add(int size) => reserve(size, 1);
+}
+
+/// Random IDs reserved together once for a create-company intent.
+final class CompanyCreationReservation {
+  const CompanyCreationReservation(this.companyId, this.authorityGenerationId);
+  final String companyId, authorityGenerationId;
 }

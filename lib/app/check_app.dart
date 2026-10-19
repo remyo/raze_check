@@ -6,8 +6,9 @@ import 'local_composition.dart';
 
 /// Standalone composition entry; reusable features live in their own package.
 class CheckApp extends StatefulWidget {
-  const CheckApp({super.key, this.identity});
+  const CheckApp({super.key, this.identity, this.companies});
   final Future<IdentityService>? identity;
+  final Future<CompanyService>? companies;
   @override
   State<CheckApp> createState() => _CheckAppState();
 }
@@ -18,6 +19,11 @@ class _CheckAppState extends State<CheckApp> {
       : null;
   late final Future<IdentityService> _identity =
       widget.identity ?? _composition!.then((services) => services.identity);
+
+  late final Future<CompanyService?> _companies =
+      widget.companies ??
+      (_composition?.then((services) => services.companies) ??
+          Future.value(null));
 
   @override
   void dispose() {
@@ -69,15 +75,36 @@ class _CheckAppState extends State<CheckApp> {
             body: Center(child: CircularProgressIndicator()),
           );
         }
-        return _ProfileGate(identity: snapshot.data!);
+        return FutureBuilder<CompanyService?>(
+          future: _companies,
+          builder: (context, companies) {
+            if (companies.hasError) {
+              return const Scaffold(
+                body: Center(
+                  child: Text('Could not open local company storage.'),
+                ),
+              );
+            }
+            if (companies.connectionState != ConnectionState.done) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+            return _ProfileGate(
+              identity: snapshot.data!,
+              companies: companies.data,
+            );
+          },
+        );
       },
     ),
   );
 }
 
 class _ProfileGate extends StatefulWidget {
-  const _ProfileGate({required this.identity});
+  const _ProfileGate({required this.identity, this.companies});
   final IdentityService identity;
+  final CompanyService? companies;
   @override
   State<_ProfileGate> createState() => _ProfileGateState();
 }
@@ -87,6 +114,8 @@ class _ProfileGateState extends State<_ProfileGate>
   late Future<List<LocalProfile>> _profiles;
   SessionHandle? _session;
   bool _setup = false;
+  bool _operatorUnlock = false;
+  bool _canCreateCompany = true;
   LocalProfile? _selected;
   Timer? _expiry;
   bool _obscured = false;
@@ -111,6 +140,7 @@ class _ProfileGateState extends State<_ProfileGate>
     setState(() {
       _session = null;
       _setup = false;
+      _operatorUnlock = false;
       _selected = null;
       _profiles = widget.identity.profiles();
     });
@@ -118,7 +148,8 @@ class _ProfileGateState extends State<_ProfileGate>
 
   void _opened(SessionHandle session) {
     try {
-      widget.identity.requireActor(session);
+      _canCreateCompany =
+          widget.identity.requireActor(session).restrictedCompanyId == null;
     } on CheckException {
       _lock();
       return;
@@ -126,10 +157,19 @@ class _ProfileGateState extends State<_ProfileGate>
     setState(() {
       _session = session;
       _setup = false;
+      _operatorUnlock = false;
       _selected = null;
     });
     _expiry?.cancel();
-    _expiry = Timer(const Duration(minutes: 5), _lock);
+    _scheduleExpiry();
+  }
+
+  void _scheduleExpiry() {
+    final identity = widget.identity;
+    final remaining = identity is ActivityIdentityService
+        ? (identity as ActivityIdentityService).remainingIdleTime(_session!)
+        : const Duration(minutes: 5);
+    _expiry = Timer(remaining, _lock);
   }
 
   void _checkSession() {
@@ -137,7 +177,7 @@ class _ProfileGateState extends State<_ProfileGate>
     try {
       widget.identity.requireActor(_session!);
       _expiry?.cancel();
-      _expiry = Timer(const Duration(minutes: 5), _lock);
+      _scheduleExpiry();
     } on CheckException {
       _lock();
     }
@@ -169,7 +209,24 @@ class _ProfileGateState extends State<_ProfileGate>
           title: const Text('Raze Check'),
           actions: [TextButton(onPressed: _lock, child: const Text('Lock'))],
         ),
-        body: const Center(child: Text('Profile unlocked')),
+        body: widget.companies == null
+            ? const Center(child: Text('Profile unlocked'))
+            : CompanyWorkspace(
+                companies: widget.companies!,
+                session: _session!,
+                ids: SecureIds(),
+                onAuthorizedActivity: _checkSession,
+                canCreateCompany: _canCreateCompany,
+                onSessionChanged: _opened,
+                onLocked: _lock,
+              ),
+      );
+    }
+    if (_operatorUnlock && widget.companies != null) {
+      return OperatorUnlockScreen(
+        companies: widget.companies!,
+        onUnlocked: _opened,
+        onCancel: () => setState(() => _operatorUnlock = false),
       );
     }
     if (_setup) {
@@ -251,6 +308,12 @@ class _ProfileGateState extends State<_ProfileGate>
                             }),
                             child: const Text('Create local profile'),
                           ),
+                          if (widget.companies != null)
+                            TextButton(
+                              onPressed: () =>
+                                  setState(() => _operatorUnlock = true),
+                              child: const Text('Unlock company operator'),
+                            ),
                         ],
                       );
                     },

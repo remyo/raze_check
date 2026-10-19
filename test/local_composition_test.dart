@@ -9,6 +9,77 @@ import '../packages/raze_check_local/test/support/repository_fixture.dart'
 
 void main() {
   test(
+    'real composition persists companies and independent operator unlock across reopen',
+    () async {
+      final paths = await tempPaths();
+      addTearDown(() => paths.root.delete(recursive: true));
+      final keys = MemoryKeyStore();
+      var services = await LocalComposition.open(
+        paths: paths,
+        secureKeys: keys,
+      );
+      final session = await services.identity.createProfile(
+        'Owner',
+        'owner passphrase 123',
+      );
+      final company =
+          (await services.companies.createCompany(
+                    session,
+                    const CompanyDraft('Composed company', 'Asia/Tokyo'),
+                    'create-company',
+                  )
+                  as Committed<Company>)
+              .value;
+      CommandContext context(String op) => CommandContext(
+        companyId: company.id,
+        session: session,
+        operationId: op,
+        authorityGenerationId: company.authorityGenerationId,
+      );
+      final staff =
+          (await services.companies.createStaff(
+                    context('staff'),
+                    const StaffDraft(name: 'Local operator'),
+                  )
+                  as Committed<StaffRecord>)
+              .value;
+      await services.companies.grantCapabilities(
+        context('grant'),
+        staff.membershipId,
+        {Capability.manageStaff},
+      );
+      await services.companies.activateOperator(
+        context('activate'),
+        staff.membershipId,
+        'operator passphrase 123',
+      );
+      await services.close();
+      services = await LocalComposition.open(paths: paths, secureKeys: keys);
+      addTearDown(services.close);
+      expect(
+        (await services.companies.operatorChoices()).single.displayName,
+        'Local operator',
+      );
+      final operator = await services.companies.unlockOperator(
+        company.id,
+        staff.membershipId,
+        'operator passphrase 123',
+      );
+      expect(
+        services.identity.requireActor(operator).restrictedCompanyId,
+        company.id,
+      );
+      expect(
+        (await services.companies.listCompanies(operator)).single.id,
+        company.id,
+      );
+      expect(
+        (await services.companies.listStaff(operator, company.id)).length,
+        2,
+      );
+    },
+  );
+  test(
     'standalone composition opens the real persistent repository with shared vault keys',
     () async {
       final paths = await tempPaths();

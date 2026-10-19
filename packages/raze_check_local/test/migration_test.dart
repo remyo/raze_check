@@ -2,10 +2,38 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'support/repository_fixture.dart';
+import 'package:raze_check_core/raze_check_core.dart';
 
 void main() {
+  test('schema-one upgrade preserves encrypted rows and operations', () async {
+    final fixture = await RepositoryFixture.open();
+    addTearDown(fixture.dispose);
+    await fixture.commit();
+    await fixture.database.customStatement(
+      'DROP TABLE company_creation_reservations',
+    );
+    await fixture.database.customStatement('PRAGMA user_version = 1');
+    await fixture.reopen();
+    expect((await fixture.repo.read('company-a', 'record-1'))!.id, 'record-1');
+    expect(
+      (await fixture.repo.snapshot(const CompanyScope('company-a'))).operations,
+      hasLength(1),
+    );
+    expect(
+      (await fixture.database.customSelect('PRAGMA user_version').getSingle())
+          .read<int>('user_version'),
+      2,
+    );
+    expect(
+      await fixture.database
+          .customSelect('SELECT * FROM company_creation_reservations')
+          .get(),
+      isEmpty,
+    );
+  });
+
   test(
-    'schema-one reopen preserves committed data and foreign keys are enabled',
+    'schema-two reopen preserves committed data and foreign keys are enabled',
     () async {
       final fixture = await RepositoryFixture.open();
       addTearDown(fixture.dispose);
@@ -20,7 +48,7 @@ void main() {
       expect(
         (await fixture.database.customSelect('PRAGMA user_version').getSingle())
             .read<int>('user_version'),
-        1,
+        2,
       );
       await expectLater(
         fixture.database.customStatement(
@@ -35,7 +63,7 @@ void main() {
     final fixture = await RepositoryFixture.open();
     addTearDown(fixture.dispose);
     await fixture.commit();
-    await fixture.database.customStatement('PRAGMA user_version = 2');
+    await fixture.database.customStatement('PRAGMA user_version = 3');
     await fixture.reopen();
     await expectLater(
       fixture.database.customSelect('SELECT COUNT(*) FROM stored_rows').get(),
@@ -58,7 +86,7 @@ void main() {
 final class InspectionDatabase extends GeneratedDatabase {
   InspectionDatabase(super.executor);
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
   @override
   Iterable<TableInfo<Table, Object?>> get allTables => [];
   @override

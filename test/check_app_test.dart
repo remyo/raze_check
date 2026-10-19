@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:raze_check/app/check_app.dart';
+import 'package:raze_check/app/local_composition.dart';
 import 'package:raze_check_core/raze_check_core.dart';
 import 'package:raze_check_local/raze_check_local.dart';
 import '../packages/raze_check_local/test/support/fake_clock.dart';
@@ -35,12 +36,14 @@ class LockBeforeDelivery implements IdentityService {
 
 Future<void> settleIo(WidgetTester tester) async {
   // Each FutureBuilder layer must mount before its real filesystem I/O runs.
-  for (var i = 0; i < 40; i++) {
+  for (var i = 0; i < 300; i++) {
     await tester.pump();
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 10)),
     );
-    if (i > 1 && find.byType(CircularProgressIndicator).evaluate().isEmpty) {
+    if (i > 1 &&
+        find.byType(CircularProgressIndicator).evaluate().isEmpty &&
+        find.text('Saving…').evaluate().isEmpty) {
       break;
     }
   }
@@ -61,6 +64,115 @@ void main() {
     );
   });
   tearDown(() async => paths.root.delete(recursive: true));
+  testWidgets(
+    'real setup selects IANA zone and activity keeps the UI idle timer aligned',
+    (tester) async {
+      final clock = FakeClock();
+      final services = (await tester.runAsync(
+        () => LocalComposition.open(
+          paths: paths,
+          secureKeys: MemoryKeyStore(),
+          clock: clock,
+        ),
+      ))!;
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.runAsync(services.close);
+      });
+      await tester.pumpWidget(
+        CheckApp(
+          identity: Future.value(services.identity),
+          companies: Future.value(services.companies),
+        ),
+      );
+      await settleIo(tester);
+      await tester.tap(find.text('Create local profile'));
+      await settleIo(tester);
+      await tester.enterText(
+        find.byKey(const Key('profile-name')),
+        'Company owner',
+      );
+      await tester.enterText(
+        find.byKey(const Key('profile-passphrase')),
+        'a long safe passphrase',
+      );
+      await tester.enterText(
+        find.byKey(const Key('profile-confirm')),
+        'a long safe passphrase',
+      );
+      await tester.runAsync(() async {
+        await tester.tap(find.text('Save profile'));
+        for (
+          var i = 0;
+          i < 100 && (await services.identity.profiles()).isEmpty;
+          i++
+        ) {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+        }
+      });
+      await settleIo(tester);
+      await tester.tap(find.text('Create company'));
+      await settleIo(tester);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Company name'),
+        'UI company',
+      );
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.widgetWithText(FilledButton, 'Create company'),
+            )
+            .onPressed,
+        isNull,
+      );
+      await tester.tap(find.text('Select IANA time zone'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'Asia/Tokyo');
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ListTile, 'Asia/Tokyo'));
+      await tester.pumpAndSettle();
+      expect(
+        find.widgetWithText(FilledButton, 'Create company'),
+        findsOneWidget,
+      );
+      await tester.runAsync(() async {
+        await tester.tap(find.widgetWithText(FilledButton, 'Create company'));
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+      });
+      await settleIo(tester);
+      expect(find.text('UI company'), findsOneWidget);
+      expect(find.text('Company owner'), findsOneWidget);
+      expect(find.text('Add staff'), findsOneWidget);
+      clock.advance(const Duration(minutes: 4));
+      await tester.pump(const Duration(minutes: 4));
+      await tester.tap(find.text('Add staff'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('staff-name')),
+        'Saved after activity',
+      );
+      tester.testTextInput.hide();
+      await tester.drag(find.byType(ListView), const Offset(0, -450));
+      await tester.pumpAndSettle();
+      await tester.runAsync(() async {
+        await tester.tap(find.text('Save staff'));
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+      });
+      await settleIo(tester);
+      clock.advance(const Duration(minutes: 2));
+      await tester.pump(const Duration(minutes: 2));
+      expect(find.text('Saved after activity'), findsOneWidget);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      clock.advance(const Duration(minutes: 3));
+      await tester.pump(const Duration(minutes: 3));
+      await settleIo(tester);
+      expect(find.text('UI company'), findsNothing);
+      expect(find.text('Unlock company operator'), findsOneWidget);
+    },
+  );
   testWidgets(
     'startup offers local setup and canceled draft persists no profile',
     (tester) async {

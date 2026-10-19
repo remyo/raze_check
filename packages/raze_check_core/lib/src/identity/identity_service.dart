@@ -8,3 +8,9 @@ abstract interface class IdentityService {
   void lock();
   ActorIdentity requireActor(SessionHandle session);
 }
+
+/// Marks only a completed authorized action as activity.
+abstract interface class ActivityIdentityService {
+  void recordActivity(SessionHandle session);
+  Duration remainingIdleTime(SessionHandle session);
+}

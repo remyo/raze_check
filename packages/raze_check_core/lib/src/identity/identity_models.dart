@@ -22,9 +22,12 @@ final class ActorIdentity {
     required this.installationId,
     required this.signingKeyId,
     required Uint8List publicKey,
+    this.restrictedCompanyId,
+    this.restrictedMembershipId,
   }) : publicKey = publicKey.asUnmodifiableView();
   final String personId;
   final String installationId;
   final String signingKeyId;
   final Uint8List publicKey;
+  final String? restrictedCompanyId, restrictedMembershipId;
 }
