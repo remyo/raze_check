@@ -6,9 +6,17 @@ import 'local_composition.dart';
 
 /// Standalone composition entry; reusable features live in their own package.
 class CheckApp extends StatefulWidget {
-  const CheckApp({super.key, this.identity, this.companies});
+  const CheckApp({
+    super.key,
+    this.identity,
+    this.companies,
+    this.enrollment,
+    this.messages,
+  });
   final Future<IdentityService>? identity;
   final Future<CompanyService>? companies;
+  final Future<EnrollmentService>? enrollment;
+  final EnrollmentMessagePort? messages;
   @override
   State<CheckApp> createState() => _CheckAppState();
 }
@@ -23,6 +31,11 @@ class _CheckAppState extends State<CheckApp> {
   late final Future<CompanyService?> _companies =
       widget.companies ??
       (_composition?.then((services) => services.companies) ??
+          Future.value(null));
+
+  late final Future<EnrollmentService?> _enrollment =
+      widget.enrollment ??
+      (_composition?.then((services) => services.enrollment) ??
           Future.value(null));
 
   @override
@@ -90,9 +103,28 @@ class _CheckAppState extends State<CheckApp> {
                 body: Center(child: CircularProgressIndicator()),
               );
             }
-            return _ProfileGate(
-              identity: snapshot.data!,
-              companies: companies.data,
+            return FutureBuilder<EnrollmentService?>(
+              future: _enrollment,
+              builder: (context, enrollment) {
+                if (enrollment.hasError) {
+                  return const Scaffold(
+                    body: Center(
+                      child: Text('Could not open enrollment storage.'),
+                    ),
+                  );
+                }
+                if (enrollment.connectionState != ConnectionState.done) {
+                  return const Scaffold(
+                    body: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                return _ProfileGate(
+                  identity: snapshot.data!,
+                  companies: companies.data,
+                  enrollment: enrollment.data,
+                  messages: widget.messages,
+                );
+              },
             );
           },
         );
@@ -102,9 +134,16 @@ class _CheckAppState extends State<CheckApp> {
 }
 
 class _ProfileGate extends StatefulWidget {
-  const _ProfileGate({required this.identity, this.companies});
+  const _ProfileGate({
+    required this.identity,
+    this.companies,
+    this.enrollment,
+    this.messages,
+  });
   final IdentityService identity;
   final CompanyService? companies;
+  final EnrollmentService? enrollment;
+  final EnrollmentMessagePort? messages;
   @override
   State<_ProfileGate> createState() => _ProfileGateState();
 }
@@ -213,6 +252,8 @@ class _ProfileGateState extends State<_ProfileGate>
             ? const Center(child: Text('Profile unlocked'))
             : CompanyWorkspace(
                 companies: widget.companies!,
+                enrollment: widget.enrollment,
+                messages: widget.messages,
                 session: _session!,
                 ids: SecureIds(),
                 onAuthorizedActivity: _checkSession,

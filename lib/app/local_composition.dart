@@ -10,6 +10,7 @@ final class LocalComposition {
     required this.attachments,
     required this.signingKeys,
     required this.companies,
+    required this.enrollment,
   });
   final IdentityService identity;
   final LocalCheckRepository repository;
@@ -17,6 +18,7 @@ final class LocalComposition {
   final ImmutableAttachmentStore attachments;
   final KeyService signingKeys;
   final CompanyService companies;
+  final EnrollmentService enrollment;
 
   static Future<LocalComposition> open({
     AppPaths? paths,
@@ -43,6 +45,13 @@ final class LocalComposition {
       return LocalComposition._(
         identity: identity,
         companies: LocalCompanyService(
+          repository: repository,
+          identity: identity,
+          keys: keys,
+          clock: localClock,
+          ids: SecureIds(),
+        ),
+        enrollment: LocalEnrollmentService(
           repository: repository,
           identity: identity,
           keys: keys,

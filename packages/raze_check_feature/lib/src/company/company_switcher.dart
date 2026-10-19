@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:raze_check_core/raze_check_core.dart';
 import '../profile/profile_commands.dart';
+import '../enrollment/membership_status_screen.dart';
 import '../team/operator_access_screen.dart';
 import '../team/staff_detail_screen.dart';
 import '../team/staff_list_screen.dart';
@@ -54,8 +55,12 @@ class CompanyWorkspace extends StatefulWidget {
     required this.onSessionChanged,
     required this.onLocked,
     this.canCreateCompany = true,
+    this.enrollment,
+    this.messages,
   });
   final CompanyService companies;
+  final EnrollmentService? enrollment;
+  final EnrollmentMessagePort? messages;
   final bool canCreateCompany;
   final SessionHandle session;
   final IdGenerator ids;
@@ -78,6 +83,7 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
       _operator = false;
   StaffRecord? _editing;
   String? _error;
+  bool _enrolling = false;
   int _generation = 0;
   late String _operation;
   @override
@@ -92,6 +98,7 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
     super.didUpdateWidget(old);
     if (!identical(old.session, widget.session)) {
       _generation++;
+      _enrolling = false;
       _selected = null;
       _draft = false;
       _setup = false;
@@ -197,6 +204,7 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
     }
     setState(() {
       _generation++;
+      _enrolling = false;
       _selected = company;
       _draft = false;
       _setup = false;
@@ -282,9 +290,18 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
     }
   }
 
+  void _openEnrollment() => setState(() => _enrolling = true);
   @override
   Widget build(BuildContext context) => Column(
     children: [
+      if (widget.enrollment != null && widget.messages != null)
+        TextButton(
+          onPressed: _openEnrollment,
+          child: Text(
+            _canManage ? 'Invite or review join' : 'Join or receive membership',
+          ),
+        ),
+
       Row(
         children: [
           Expanded(
@@ -314,6 +331,45 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
   );
   Widget _body() {
     if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_enrolling && widget.enrollment != null && widget.messages != null) {
+      return Column(
+        children: [
+          TextButton(
+            onPressed: () {
+              setState(() => _enrolling = false);
+              _reload();
+            },
+            child: const Text('Back to company'),
+          ),
+          Expanded(
+            child: EnrollmentWorkspace(
+              key: ValueKey('enrollment-${_selected?.id}'),
+              service: widget.enrollment!,
+              session: widget.session,
+              ids: widget.ids,
+              messages: widget.messages!,
+              company: _selected,
+              canManage: _canManage,
+              owner: _owner,
+              manualStaff: _staff
+                  .where(
+                    (s) => _members.any(
+                      (m) =>
+                          m.id == s.membershipId &&
+                          !m.owner &&
+                          m.active &&
+                          m.capabilities.isEmpty,
+                    ),
+                  )
+                  .toList(),
+              onChanged: widget.onAuthorizedActivity,
+              onLocked: widget.onLocked,
+            ),
+          ),
+        ],
+      );
+    }
+
     if (_setup) {
       return CompanySetupScreen(
         key: ValueKey('setup-$_operation'),

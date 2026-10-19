@@ -27,3 +27,4 @@ export 'src/messaging/message_types.dart'
 export 'src/messaging/message_codec.dart';
 export 'src/messaging/message_verifier.dart';
 export 'src/messaging/message_limits.dart';
+export 'src/company/enrollment_service.dart';

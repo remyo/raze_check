@@ -340,6 +340,19 @@ final class LocalCheckRepository implements CheckRepository {
               await _saveRecord(record, group.key);
             }
           }
+          for (final association in mutation.removePersonalRecords) {
+            if (association.companyId != null &&
+                association.companyId != context.companyId) {
+              throw const CheckException(CheckError.wrongCompany);
+            }
+            if (association.personId.isEmpty || association.recordId.isEmpty) {
+              throw const CheckException(CheckError.malformed);
+            }
+            await _db.customStatement(
+              'DELETE FROM personal_records WHERE person_id = ? AND company_id = ? AND record_id = ?',
+              [association.personId, context.companyId, association.recordId],
+            );
+          }
           for (final association in mutation.personalRecords) {
             if (association.companyId != null &&
                 association.companyId != context.companyId) {

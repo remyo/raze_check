@@ -13,5 +13,7 @@ dependencies:
   flutter_riverpod: 3.4.3
   qr_flutter: 4.1.0
 dev_dependencies:
+  raze_check_local:
+    path: ../raze_check_local
   flutter_test:
     sdk: flutter

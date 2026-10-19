@@ -12,3 +12,4 @@ export 'src/database/local_check_repository.dart';
 export 'src/files/immutable_attachment_store.dart';
 
 export 'src/company/local_company_service.dart';
+export 'src/company/local_enrollment_service.dart';

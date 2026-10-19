@@ -58,8 +58,10 @@ final class Mutation {
     List<StoredRecord> recovery = const [],
     List<AttachmentManifestEntry> attachments = const [],
     List<PersonalRecordAssociation> personalRecords = const [],
+    List<PersonalRecordAssociation> removePersonalRecords = const [],
     Set<String> personalOperationOwners = const {},
-  }) : records = List.unmodifiable(records),
+  }) : removePersonalRecords = List.unmodifiable(removePersonalRecords),
+       records = List.unmodifiable(records),
        events = List.unmodifiable(events),
        outbox = List.unmodifiable(outbox),
        authorityHistory = List.unmodifiable(authorityHistory),
@@ -76,6 +78,10 @@ final class Mutation {
   final List<AttachmentManifestEntry> attachments;
   final List<PersonalRecordAssociation> personalRecords;
   final Set<String> personalOperationOwners;
+
+  /// Scoped ownership removals, applied atomically before new associations.
+  /// Used only by an authorized identity link, never inferred from names.
+  final List<PersonalRecordAssociation> removePersonalRecords;
 }
 
 abstract interface class ReadView {
