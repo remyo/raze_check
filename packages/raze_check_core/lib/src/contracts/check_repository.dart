@@ -188,11 +188,15 @@ abstract interface class CheckRepository {
   Future<StoredRecord?> read(String companyId, String recordId);
   Stream<int> watchRevision(String companyId);
 
-  /// Protected format limits, not subscription limits. Scope objects do not
+  /// Bounded logical data, independent of the archive's ZIP file-entry limit.
+  /// Every record, operation, journal row, association and operation-owner link
+  /// counts toward [maxEntries]. The default/hard ceiling is 64 MiB / 128 bytes
+  /// of minimum charged metadata per item; [maxBytes] remains independently
+  /// bounded at 64 MiB. Callers may choose tighter limits. Scope objects do not
   /// confer permission. Services authorize before asking for a snapshot.
   Future<LogicalSnapshot> snapshot(
     ExportScope scope, {
     int maxBytes = 64 * 1024 * 1024,
-    int maxEntries = 10000,
+    int maxEntries = 64 * 1024 * 1024 ~/ 128,
   });
 }

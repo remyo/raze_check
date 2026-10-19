@@ -87,6 +87,7 @@ final class LocalCheckRepository implements CheckRepository {
   Future<StoredOperation> _decodeOperation(
     QueryRow row, {
     String? personId,
+    _SnapshotBudget? snapshotBudget,
   }) async {
     final company = row.read<String>('company_id');
     final id = row.read<String>('operation_id');
@@ -103,12 +104,12 @@ final class LocalCheckRepository implements CheckRepository {
               ),
             )
             as Map<String, dynamic>;
-    final owners = await _db
-        .customSelect(
-          'SELECT person_id FROM personal_operations WHERE company_id = ? AND operation_id = ? ${personId == null ? '' : 'AND person_id = ?'} ORDER BY person_id',
-          variables: [_s(company), _s(id), if (personId != null) _s(personId)],
-        )
-        .get();
+    final owners = await _operationOwners(
+      company,
+      id,
+      personId: personId,
+      budget: snapshotBudget,
+    );
     return StoredOperation(
       personalOwners: owners.map((r) => r.read<String>('person_id')).toSet(),
       companyId: company,
@@ -121,6 +122,40 @@ final class LocalCheckRepository implements CheckRepository {
           ? null
           : _fromJson(body['result'] as Map<String, dynamic>),
     );
+  }
+
+  Future<List<QueryRow>> _operationOwners(
+    String companyId,
+    String operationId, {
+    String? personId,
+    _SnapshotBudget? budget,
+  }) async {
+    final where =
+        'company_id = ? AND operation_id = ? ${personId == null ? '' : 'AND person_id = ?'}';
+    final variables = [
+      _s(companyId),
+      _s(operationId),
+      if (personId != null) _s(personId),
+    ];
+    int? limit;
+    if (budget != null) {
+      // Count links and actual UTF-8 bytes inside SQLite before materializing
+      // any owner IDs. Each exported link is one logical snapshot item.
+      final totals = await _db
+          .customSelect(
+            'SELECT COUNT(*) AS n, COALESCE(SUM(length(CAST(person_id AS BLOB)) + 128), 0) AS size FROM personal_operations WHERE $where',
+            variables: variables,
+          )
+          .getSingle();
+      limit = totals.read<int>('n');
+      budget.reserve(totals.read<int>('size'), limit);
+    }
+    return _db
+        .customSelect(
+          'SELECT person_id FROM personal_operations WHERE $where ORDER BY person_id ${limit == null ? '' : 'LIMIT ?'}',
+          variables: [...variables, if (limit != null) _i(limit)],
+        )
+        .get();
   }
 
   bool _sameBytes(List<int> a, List<int> b) {
@@ -541,13 +576,13 @@ final class LocalCheckRepository implements CheckRepository {
   Future<LogicalSnapshot> snapshot(
     ExportScope scope, {
     int maxBytes = 64 * 1024 * 1024,
-    int maxEntries = 10000,
+    int maxEntries = 64 * 1024 * 1024 ~/ 128,
   }) => _exclusive(
     () => _storage(() async {
       if (maxBytes < 1 ||
           maxBytes > 64 * 1024 * 1024 ||
           maxEntries < 1 ||
-          maxEntries > 10000) {
+          maxEntries > 64 * 1024 * 1024 ~/ 128) {
         throw const CheckException(CheckError.limitExceeded);
       }
       final budget = _SnapshotBudget(maxBytes, maxEntries);
@@ -580,6 +615,7 @@ final class LocalCheckRepository implements CheckRepository {
           final operation = await _decodeOperation(
             row,
             personId: personal ? scopeId : null,
+            snapshotBudget: budget,
           );
           if (personal && operation.result != null) {
             final result = operation.result!;
@@ -760,16 +796,12 @@ final class _SnapshotBudget {
     }
   }
 
-  void addBytes(int size) {
-    check(size, 0);
+  void reserve(int size, int count) {
+    check(size, count);
     bytes += size;
+    entries += count;
   }
 
-  void add(int size) {
-    bytes += size;
-    entries++;
-    if (bytes > maxBytes || entries > maxEntries) {
-      throw const CheckException(CheckError.limitExceeded);
-    }
-  }
+  void addBytes(int size) => reserve(size, 0);
+  void add(int size) => reserve(size, 1);
 }

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:drift/drift.dart';
+import 'package:drift/native.dart';
 import 'package:raze_check_core/raze_check_core.dart';
 import 'package:raze_check_local/raze_check_local.dart';
 import 'package:raze_check_local/src/database/check_database.dart';
@@ -11,14 +12,19 @@ final class RepositorySession implements SessionHandle {}
 
 /// Real file-backed SQLite, real AES, and only an in-memory secure-key adapter.
 final class RepositoryFixture {
-  RepositoryFixture._(this.paths, this.keys);
+  RepositoryFixture._(this.paths, this.keys, this.interceptor);
+  final QueryInterceptor? interceptor;
   final AppPaths paths;
   final MemoryKeyStore keys;
   late CheckDatabase database;
   late LocalCheckRepository repo;
   final session = RepositorySession();
-  static Future<RepositoryFixture> open() async {
-    final fixture = RepositoryFixture._(await tempPaths(), MemoryKeyStore());
+  static Future<RepositoryFixture> open({QueryInterceptor? interceptor}) async {
+    final fixture = RepositoryFixture._(
+      await tempPaths(),
+      MemoryKeyStore(),
+      interceptor,
+    );
     await VaultKeys(fixture.keys).create('company-a');
     await VaultKeys(fixture.keys).create('company-b');
     fixture._connect();
@@ -26,7 +32,13 @@ final class RepositoryFixture {
   }
 
   void _connect() {
-    database = CheckDatabase.open(paths);
+    database = interceptor == null
+        ? CheckDatabase.open(paths)
+        : CheckDatabase(
+            NativeDatabase.createInBackground(
+              paths.database,
+            ).interceptWith(interceptor!),
+          );
     repo = LocalCheckRepository(
       database: database,
       cipher: AesPayloadCipher(VaultKeys(keys)),

@@ -3,7 +3,8 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:drift/drift.dart' show driftRuntimeOptions;
+import 'package:drift/drift.dart'
+    show driftRuntimeOptions, QueryInterceptor, QueryExecutor;
 import 'package:raze_check_core/raze_check_core.dart';
 import 'package:raze_check_local/raze_check_local.dart';
 import 'package:raze_check_local/src/database/check_database.dart'
@@ -531,6 +532,138 @@ void main() {
     },
   );
   test(
+    'snapshot owner bytes exceed the budget before IDs are materialized',
+    () async {
+      final probe = OwnerMaterializationProbe();
+      await fixture.dispose();
+      fixture = await RepositoryFixture.open(interceptor: probe);
+      final owners = {
+        for (var i = 0; i < 50; i++)
+          '00000000-0000-4000-8000-${i.toRadixString(16).padLeft(12, '0')}',
+      };
+      await fixture.repo.prepare(
+        fixture.context('owner-heavy'),
+        requestDigest: fixture.digest(),
+        personalOwners: owners,
+      );
+      Object? failure;
+      try {
+        await fixture.repo.snapshot(
+          const CompanyScope('company-a'),
+          maxBytes: 1024,
+        );
+      } on CheckException catch (error) {
+        failure = error;
+      }
+      expect(
+        probe.ownerRowsRead,
+        0,
+        reason:
+            'SQL aggregate must reject before owner IDs cross the database boundary',
+      );
+      expect(
+        failure,
+        isA<CheckException>().having(
+          (e) => e.code,
+          'code',
+          CheckError.limitExceeded,
+        ),
+      );
+    },
+  );
+
+  test(
+    'snapshot counts each operation owner as an entry with an exact boundary',
+    () async {
+      const first = '00000000-0000-4000-8000-000000000001';
+      const second = '00000000-0000-4000-8000-000000000002';
+      await fixture.repo.prepare(
+        fixture.context('owned'),
+        requestDigest: fixture.digest(),
+        personalOwners: {first, second},
+      );
+      await expectLater(
+        fixture.repo.snapshot(const CompanyScope('company-a'), maxEntries: 2),
+        throwsA(
+          isA<CheckException>().having(
+            (e) => e.code,
+            'code',
+            CheckError.limitExceeded,
+          ),
+        ),
+      );
+      final snapshot = await fixture.repo.snapshot(
+        const CompanyScope('company-a'),
+        maxEntries: 3,
+      );
+      expect(snapshot.operations.single.personalOwners, {first, second});
+    },
+  );
+
+  test(
+    'snapshot owner preflight respects company and personal scope',
+    () async {
+      const first = '00000000-0000-4000-8000-000000000001';
+      const second = '00000000-0000-4000-8000-000000000002';
+      await fixture.repo.prepare(
+        fixture.context('owned'),
+        requestDigest: fixture.digest(),
+        personalOwners: {first, second},
+      );
+      await fixture.repo.prepare(
+        fixture.context('unrelated', companyId: 'company-b'),
+        requestDigest: fixture.digest(),
+        personalOwners: {
+          for (var i = 0; i < 50; i++)
+            '10000000-0000-4000-8000-${i.toRadixString(16).padLeft(12, '0')}',
+        },
+      );
+      final company = await fixture.repo.snapshot(
+        const CompanyScope('company-a'),
+        maxEntries: 3,
+      );
+      expect(company.operations.single.personalOwners, {first, second});
+      final personal = await fixture.repo.snapshot(
+        const PersonalScope(first),
+        maxBytes: 1024,
+        maxEntries: 2,
+      );
+      expect(personal.operations, hasLength(1));
+      expect(
+        personal.operations.map((o) => o.personalOwners),
+        everyElement({first}),
+      );
+    },
+  );
+  test(
+    'snapshot allows over ten thousand logical items when bytes fit',
+    () async {
+      final owners = {
+        for (var i = 0; i < 10000; i++)
+          '00000000-0000-4000-8000-${i.toRadixString(16).padLeft(12, '0')}',
+      };
+      await fixture.repo.prepare(
+        fixture.context('many-logical-items'),
+        requestDigest: fixture.digest(),
+        personalOwners: owners,
+      );
+      final CheckRepository repository = fixture.repo;
+      final snapshot = await repository.snapshot(
+        const CompanyScope('company-a'),
+        maxEntries: 10001,
+      );
+      expect(snapshot.operations.single.personalOwners, owners);
+      // Default logical-item allowance must likewise be independent of ZIP files.
+      final defaultSnapshot = await repository.snapshot(
+        const CompanyScope('company-a'),
+      );
+      expect(
+        defaultSnapshot.operations.single.personalOwners,
+        hasLength(10000),
+      );
+    },
+  );
+  test(
     'snapshot remains consistent while another database connection commits',
     () async {
       await fixture.commit();
@@ -645,4 +778,21 @@ final class PausingCipher implements PayloadCipher {
     revision: revision,
     plain: plain,
   );
+}
+
+/// Observes rows returned by real SQLite; never replaces data or behavior.
+final class OwnerMaterializationProbe extends QueryInterceptor {
+  int ownerRowsRead = 0;
+  @override
+  Future<List<Map<String, Object?>>> runSelect(
+    QueryExecutor executor,
+    String statement,
+    List<Object?> args,
+  ) async {
+    final rows = await executor.runSelect(statement, args);
+    ownerRowsRead += rows
+        .where((row) => row.length == 1 && row.containsKey('person_id'))
+        .length;
+    return rows;
+  }
 }
