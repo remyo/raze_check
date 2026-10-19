@@ -4,7 +4,7 @@ Date: 2026-10-18
 
 Last revised: 2026-10-19 — standalone Raze Check first, future Raze Store embedding, durable local replicas, and recovery boundaries.
 
-Status: Product scope for review before implementation planning. No application code has been created.
+Status: Product design approved by the user on 2026-10-19. Standalone foundation implementation planning authorized; application implementation has not started. Launch targets confirmed: Android and iOS together.
 
 ## 1. Purpose and agreed direction
 
@@ -18,7 +18,7 @@ Current delivery priority is the standalone Raze Check app. The user also wants 
 
 Future requirement: when both apps are linked on the same device, each retains a durable, independently recoverable attendance copy. Users may continue from the surviving copy after uninstalling either app. This protects only data and attachments acknowledged by that surviving copy; cache, unacknowledged transfers, and unsynchronized records are not guaranteed recovery sources. Local replication is not a backup against loss of the whole device.
 
-The operating rules below are proposed defaults that make this direction coherent. They are part of this review, not claims that every detail has already been approved. Technology vendors, subscription prices, hardware purchases, and implementation schedules are not selected by this document.
+The operating rules below are the approved product-level baseline. Technical choices for each phase are documented in its implementation plan for review. Subscription prices, hardware purchases, and implementation schedules are not selected by this document.
 
 ## 2. People and devices
 
@@ -312,7 +312,7 @@ Additional integration acceptance scenarios apply only when the held Raze Store 
 
 ## 12. Decisions to settle before each build phase
 
-Before the free foundation plan, confirm the launch platforms (Android, iOS, or both), practical test-device/storage targets, membership and recovery defaults, and the initial screen layouts. Define the receipt schema and integrity mechanism, migration/archive format, source-of-truth rules, and failure behavior in the technical plan. Camera, file import/export, and any Wi-Fi inspection capabilities need verification on the chosen platforms.
+Launch platforms are confirmed as Android and iOS together. The free foundation implementation plan defines practical test-device/storage targets, membership and recovery defaults, initial screen scope, receipt schema and integrity mechanism, migration/archive format, source-of-truth rules, and failure behavior. Camera and file import/export need verification on both platforms. Wi-Fi inspection remains a separate later feasibility item.
 
 Before schedules and salary implementation, specify grace treatment, payable breaks, overnight-shift assignment, overtime approval/rates, rounding, currency, leave rules, monthly proration, and finalized-period correction behavior. Do not infer these rules from the user's location.
 
@@ -335,4 +335,4 @@ Before resuming Raze Store integration, validate native cross-app access, app si
 - [Apple App Groups](https://developer.apple.com/documentation/xcode/configuring-app-groups)
 - [Apple group-container lifecycle](https://developer.apple.com/documentation/Foundation/FileManager/containerURL(forSecurityApplicationGroupIdentifier:))
 
-Next artifact: a detailed implementation plan for the first delivery phase after this product design is reviewed. Launch platforms and implementation technology choices belong in that planning discussion; this document does not implicitly select a backend vendor, database package, or biometric device.
+Next artifact for review: [standalone foundation implementation plan](../plans/2026-10-19-raze-check-standalone-foundation.md). This product design does not select a backend vendor or biometric device; the plan records the standalone technology choices and validation gates. Raze Store integration remains held.

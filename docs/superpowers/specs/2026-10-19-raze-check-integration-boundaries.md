@@ -2,7 +2,7 @@
 
 Date: 2026-10-19
 
-Status: Design for review. No Flutter packages, native bridge, replication engine, or Raze Store integration have been implemented.
+Status: Design approved by the user on 2026-10-19. Raze Store integration remains on hold while the standalone Android/iOS foundation is planned. No Flutter packages, native bridge, replication engine, or Raze Store integration have been implemented.
 
 Parent: [Attendance and staff management product design](2026-10-18-attendance-management-design.md).
 
