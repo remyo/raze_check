@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
@@ -279,4 +280,151 @@ void main() {
     },
     timeout: const Timeout(Duration(minutes: 3)),
   );
+  for (final crash in [true, false]) {
+    test(
+      'discard waits for applying restore ${crash ? "interruption" : "commit"} and preserves durable intent',
+      () async {
+        final source = await RepositoryFixture.open(),
+            target = await RepositoryFixture.open();
+        addTearDown(source.dispose);
+        addTearDown(target.dispose);
+        LocalIdentityService identity(RepositoryFixture f) =>
+            LocalIdentityService(
+              keys: f.keys,
+              catalog: ProfileCatalog(paths: f.paths, keys: f.keys),
+              clock: SystemCheckClock(),
+              ids: SecureIds(),
+              repository: f.repo,
+            );
+        final sourceIdentity = identity(source),
+            targetIdentity = identity(target);
+        final sourceSession = await sourceIdentity.createProfile(
+          'Source',
+          'source secure password',
+        );
+        final targetSession = await targetIdentity.createProfile(
+          'Target',
+          'target secure password',
+        );
+        final company =
+            (await LocalCompanyService(
+                      repository: source.repo,
+                      identity: sourceIdentity,
+                      keys: source.keys,
+                      clock: SystemCheckClock(),
+                      ids: SecureIds(),
+                    ).createCompany(
+                      sourceSession,
+                      const CompanyDraft('Source', 'Asia/Tokyo'),
+                      'create',
+                    )
+                    as Committed<Company>)
+                .value;
+        final backup = LocalArchiveService(
+          paths: source.paths,
+          keys: source.keys,
+          repository: source.repo,
+          identity: sourceIdentity,
+          clock: SystemCheckClock(),
+          ids: SecureIds(),
+        );
+        final archive = await backup.create(
+          sourceSession,
+          CompanyScope(company.id),
+          'archive secure password',
+        );
+        final selected = File('${source.paths.root.path}/selected.archive');
+        await selected.writeAsBytes(
+          await backup.shareBytes(sourceSession, archive.artifactId),
+        );
+        final entered = Completer<void>(), release = Completer<void>();
+        final restore = LocalArchiveService(
+          paths: target.paths,
+          keys: target.keys,
+          repository: target.repo,
+          identity: targetIdentity,
+          clock: SystemCheckClock(),
+          ids: SecureIds(),
+          fault: (phase) async {
+            if (phase == 'keys') {
+              entered.complete();
+              await release.future;
+              if (crash) throw StateError('simulated process exit');
+            }
+          },
+        );
+        final preview = await restore.inspect(
+          targetSession,
+          selected.path,
+          'archive secure password',
+        );
+        final applying = restore
+            .apply(preview, RestoreChoice.newInstallation)
+            .then<Object>((r) => r, onError: (Object e, StackTrace s) => e);
+        await entered.future.timeout(const Duration(seconds: 10));
+        var discardFinished = false;
+        final discarding = restore.discard(preview).then<Object?>((_) {
+          discardFinished = true;
+          return null;
+        }, onError: (Object e, StackTrace s) => e);
+        try {
+          // This read queues after discard's first repository call. Before the
+          // fix that call replaced the applying journal with an empty marker.
+          final jobs = await target.repo.restoreJournals();
+          expect(jobs[preview.stagingToken], isNotEmpty);
+          expect(discardFinished, false);
+          expect(
+            await target.keys.read('vault:restore-${preview.stagingToken}'),
+            isNotNull,
+          );
+          final observer = await LocalCheckRepository.open(
+            paths: target.paths,
+            cipher: AesPayloadCipher(VaultKeys(target.keys)),
+          );
+          try {
+            expect(
+              (await observer.restoreJournals())[preview.stagingToken],
+              isNotEmpty,
+            );
+          } finally {
+            await observer.close();
+          }
+        } finally {
+          release.complete();
+          await applying;
+          await discarding;
+        }
+        expect(
+          await applying,
+          crash ? isA<CheckException>() : isA<RestoreResult>(),
+        );
+        expect(await discarding, isNull);
+        await target.reopen();
+        await LocalArchiveService(
+          paths: target.paths,
+          keys: target.keys,
+          repository: target.repo,
+          identity: targetIdentity,
+          clock: SystemCheckClock(),
+          ids: SecureIds(),
+        ).resume();
+        expect(await target.repo.restoreJournals(), isEmpty);
+        expect(
+          await target.keys.read('vault:restore-${preview.stagingToken}'),
+          isNull,
+        );
+        expect(await target.keys.read('vault:${company.id}'), isNotNull);
+        expect(
+          await target.keys.read('company-root:${company.id}'),
+          crash ? isNull : isNotNull,
+        );
+        expect(
+          await target.repo.read(company.id, company.id),
+          crash ? isNull : isNotNull,
+        );
+        expect(await selected.exists(), true);
+      },
+      timeout: const Timeout(Duration(minutes: 2)),
+    );
+  }
 }

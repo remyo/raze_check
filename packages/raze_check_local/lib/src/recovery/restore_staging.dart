@@ -233,23 +233,13 @@ final class RestoreStaging {
           plan['archiveId'] as String,
           contentHash: plan['contentHash'] as String,
         )) {
-      // Published attachments are immutable and may already be referenced by
-      // another valid writer. Retain them and their scope vaults on rollback.
-      final retainedVaults = <String>{};
-      for (final move in plan['moves'] as List) {
-        final relative = move[0] as String;
-        if (!RegExp(
-          r'^attachments/[a-zA-Z0-9_-]{1,128}/[a-f0-9]{64}\.enc$',
-        ).hasMatch(relative)) {
-          archiveBad();
-        }
-        if (await File('${paths.root.path}/$relative').exists()) {
-          retainedVaults.add('vault:${relative.split('/')[1]}');
-        }
-      }
+      // A scope vault is shared as soon as it is written. Another normal
+      // writer may use it even without any restore-owned attachment move.
+      // Only private staging keys (discard below) and unrelated acknowledged
+      // recovery allocations are cleanup candidates; shared vaults stay.
       for (final allocation in (plan['allocations'] as List).reversed) {
         final old = await keys.read(allocation[0] as String);
-        if (!retainedVaults.contains(allocation[0]) &&
+        if (!(allocation[0] as String).startsWith('vault:') &&
             allocation[2] == true &&
             old != null &&
             base64Encode(old) == allocation[1]) {

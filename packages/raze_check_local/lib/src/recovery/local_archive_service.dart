@@ -44,10 +44,14 @@ final class LocalArchiveService implements BackupService, RestoreService {
         RestorePreview,
         ({SessionHandle session, DateTime created})
       >.identity();
-  bool _busy = false;
-  Future<T> _serial<T>(Future<T> Function() action) async {
-    if (_busy) archiveBad(CheckError.invalidTransition);
-    _busy = true;
+  Completer<void>? _active;
+  Future<T> _serial<T>(Future<T> Function() action, {bool wait = false}) async {
+    while (_active != null) {
+      if (!wait) archiveBad(CheckError.invalidTransition);
+      await _active!.future;
+    }
+    final active = Completer<void>();
+    _active = active;
     try {
       await staging.recoverPendingApplications();
       return await action();
@@ -56,7 +60,8 @@ final class LocalArchiveService implements BackupService, RestoreService {
     } catch (_) {
       throw const CheckException(CheckError.storageFailure);
     } finally {
-      _busy = false;
+      _active = null;
+      active.complete();
     }
   }
 
@@ -364,11 +369,13 @@ final class LocalArchiveService implements BackupService, RestoreService {
         return RestoreResult(preview.manifestId, duplicate: !changed);
       });
   @override
-  Future<void> discard(RestorePreview preview) async {
+  Future<void> discard(RestorePreview preview) => _serial(() async {
+    // Route-finally cleanup must wait for apply and its durable recovery. It
+    // must neither erase an applying intent nor reject ordinary navigation.
     if (_previews.remove(preview) != null) {
       await staging.discard(preview.stagingToken);
     }
-  }
+  }, wait: true);
 
   Future<void> resume() => _serial(staging.resume);
 }
