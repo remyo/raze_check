@@ -14,9 +14,11 @@ The Flutter host composes `raze_check_core` (contracts and protocol), `raze_chec
 
 These are current UI labels for later hands-on testing. The two-phone printed-camera and native picker/share interaction checks remain deferred by the user; see the device matrix for what was actually verified.
 
+**Settings → Help & Guides** replays the introduction and offers guides for the current profile, company and recovery path. Guide progress is shared on this installation; **Next** advances an explanation and **Viewed** never certifies a successful operation. See [guide behavior and verification](docs/testing/guided-onboarding.md) for progress, embedding and capture/device evidence status.
+
 ## Current local preview
 
-The normal Android app is installed on the authorized Samsung test phone; its retained debug APK is `build/artifacts/task13-current/android/raze-check-normal-debug.apk`. The local iOS simulator app at `build/artifacts/task13-current/ios-simulator/Runner.app` is for a Mac simulator, not a physical iPhone. Current iPhone signing/testing was explicitly deferred after the selected Israel Eusebio team had no usable Xcode account/profile for this bundle. Earlier iPhone test artifacts are not a normal current-app preview. These ignored local artifacts are not a published release.
+The normal Android app from `6ded4d6` was updated on the authorized Samsung test phone without uninstalling or clearing storage; its first Welcome page was captured and inspected. The retained normal debug APK is `build/artifacts/guided-onboarding/task7/final/android/raze-check-normal-debug.apk`. The normal iOS simulator app is `build/artifacts/guided-onboarding/task7/final/ios-simulator/Runner.app`; physical iPhone signing/testing remains explicitly deferred because a usable Xcode account/profile is unavailable. These ignored local artifacts are not a published release. See [guided onboarding evidence](docs/testing/guided-onboarding.md) for build hashes, source-separated checks, eight synthetic screen captures and manual-device limits.
 
 ## Development
 

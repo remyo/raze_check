@@ -2,7 +2,7 @@
 
 Date: 2026-10-20
 
-Status: Written design approved in chat on 2026-10-20; implementation planning authorized. The user also authorized useful images/icons and requested screenshots.
+Status: Approved 2026-10-20 and implemented through `6ded4d6`: ten guides, 46 authored positions and 23 audience/path pairs. [Implementation and verification evidence](../../testing/guided-onboarding.md) includes eight inspected synthetic renders, normal Android/iOS simulator builds and a preserved-data Android update/runtime welcome capture. Physical iPhone signing and user-deferred two-phone camera/native picker/share checks remain explicit device gaps.
 
 Starting point: `dev` at `9650a111f55d8fd53b09387ff2e4a98de27481bc`.
 
