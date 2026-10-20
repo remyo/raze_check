@@ -63,7 +63,7 @@ void main() {
         await unlockFeature(tester, manager ? 'Owner' : 'Staff');
         await settleFeature(
           tester,
-          until: manager ? 'A clear view' : 'Your attendance',
+          until: manager ? 'Company attendance' : 'Your attendance',
         );
         for (final size in [320.0, 390.0, 768.0]) {
           for (final textScale in [1.0, 2.0]) {

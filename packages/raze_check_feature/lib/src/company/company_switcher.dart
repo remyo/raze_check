@@ -21,10 +21,12 @@ class CompanySwitcher extends StatelessWidget {
     required this.companies,
     required this.selected,
     required this.onSelected,
+    this.subtitle,
   });
   final List<Company> companies;
   final Company? selected;
   final ValueChanged<Company> onSelected;
+  final String? subtitle;
   @override
   Widget build(BuildContext context) => PopupMenuButton<Company>(
     key: const Key('company-switcher'),
@@ -34,19 +36,45 @@ class CompanySwitcher extends StatelessWidget {
       for (final company in companies)
         PopupMenuItem(value: company, child: Text(company.name)),
     ],
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Flexible(
-            child: Text(
-              selected?.name ?? 'Select company',
-              overflow: TextOverflow.ellipsis,
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 48),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    selected?.name ?? 'Select company',
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle!,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
-          ),
-          const Icon(Icons.arrow_drop_down),
-        ],
+            const SizedBox(width: 8),
+            Icon(
+              Icons.keyboard_arrow_down,
+              size: 20,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ],
+        ),
       ),
     ),
   );
@@ -797,18 +825,22 @@ class CompanyWorkspaceState extends State<CompanyWorkspace> {
         Row(
           children: [
             Padding(
-              padding: const EdgeInsets.only(left: 12),
-              child: SizedBox(
-                width: 48,
-                height: 48,
-                child:
-                    widget.host?.iconBuilder?.call(context) ??
-                    Image.asset(
-                      'packages/raze_check_feature/assets/branding/raze_check_logo_master.png',
-                      width: 48,
-                      height: 48,
-                      semanticLabel: 'Raze Check mascot',
-                    ),
+              padding: const EdgeInsets.only(left: 20),
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
+                ),
+                child: Icon(
+                  Icons.business_outlined,
+                  size: 22,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
             Expanded(
@@ -816,6 +848,9 @@ class CompanyWorkspaceState extends State<CompanyWorkspace> {
                 companies: _companies,
                 selected: _selected,
                 onSelected: _switch,
+                subtitle: _selected == null
+                    ? null
+                    : '${manager ? "Management" : "Staff"} · ${_selected!.timeZoneId}',
               ),
             ),
             if (widget.canCreateCompany)
@@ -826,19 +861,19 @@ class CompanyWorkspaceState extends State<CompanyWorkspace> {
               ),
           ],
         ),
-        if (_selected != null)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-            child: Text(
-              '${manager ? "Management" : "Staff"} · ${_selected!.timeZoneId}',
-            ),
-          ),
         Expanded(child: _featureBody()),
         if (_selected != null)
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              border: Border(
+                top: BorderSide(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
+              ),
+            ),
+            child: SafeArea(
+              top: false,
               child: LayoutBuilder(
                 builder: (context, box) {
                   final large = MediaQuery.textScalerOf(context).scale(14) > 21;
@@ -854,16 +889,11 @@ class CompanyWorkspaceState extends State<CompanyWorkspace> {
                             selected: _tab == i,
                             child: TextButton(
                               style: TextButton.styleFrom(
-                                backgroundColor: _tab == i
-                                    ? Theme.of(
-                                        context,
-                                      ).colorScheme.secondaryContainer
-                                    : null,
                                 foregroundColor: _tab == i
-                                    ? Theme.of(
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Theme.of(
                                         context,
-                                      ).colorScheme.onSecondaryContainer
-                                    : null,
+                                      ).colorScheme.onSurfaceVariant,
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 2,
                                   vertical: 8,
@@ -882,13 +912,36 @@ class CompanyWorkspaceState extends State<CompanyWorkspace> {
                               child: Column(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
+                                  Container(
+                                    width: 20,
+                                    height: 3,
+                                    margin: const EdgeInsets.only(bottom: 6),
+                                    decoration: BoxDecoration(
+                                      color: _tab == i
+                                          ? Theme.of(
+                                              context,
+                                            ).colorScheme.primary
+                                          : null,
+                                      borderRadius: BorderRadius.circular(2),
+                                    ),
+                                  ),
                                   Icon(destinations[i].$2),
+                                  const SizedBox(height: 3),
                                   Text(
                                     destinations[i].$1,
                                     textAlign: TextAlign.center,
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.labelMedium,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelMedium
+                                        ?.copyWith(
+                                          color: _tab == i
+                                              ? Theme.of(
+                                                  context,
+                                                ).colorScheme.primary
+                                              : Theme.of(
+                                                  context,
+                                                ).colorScheme.onSurfaceVariant,
+                                        ),
                                   ),
                                 ],
                               ),

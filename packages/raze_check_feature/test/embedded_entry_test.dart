@@ -82,7 +82,7 @@ void main() {
         );
       });
       await unlockFeature(tester, 'Owner');
-      await settleFeature(tester, until: 'A clear view');
+      await settleFeature(tester, until: 'Company attendance');
       expect(find.textContaining('Offline company'), findsWidgets);
       expect(find.textContaining('Management'), findsWidgets);
       expect(
@@ -115,7 +115,7 @@ void main() {
         await tester.tap(find.text('Overview'));
         await tester.pump();
       });
-      await settleFeature(tester, until: 'A clear view');
+      await settleFeature(tester, until: 'Company attendance');
       expect(tester.takeException(), isNull);
       await tester.tap(find.text('More'));
       await tester.pumpAndSettle();

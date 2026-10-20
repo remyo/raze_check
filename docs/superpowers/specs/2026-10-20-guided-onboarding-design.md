@@ -186,6 +186,8 @@ Missing or offscreen anchors produce a readable instruction panel with Continue/
 
 Match the approved Raze Check typography, colors, branding, and light/dark themes. Use concise plain English and the existing UI labels. Support narrow phones, tablets, landscape, large text, screen readers, and reduced-motion preferences. All steps must be scrollable when needed. Provide semantic headings, step counts, labeled controls, sensible focus order, and a non-gesture way to leave a guide. Prefer a bottom sheet or full-page explanation when a floating bubble cannot fit safely.
 
+The user subsequently approved the neutral/teal visual refresh, including its full component style: white or neutral charcoal surfaces, one teal accent, 16-pixel rounded cards, 12-pixel button corners, compact company context, grouped metrics, and quieter navigation. Tutorials inherit that updated theme and component vocabulary. Small text colors may be adjusted for readable contrast; the approved logo remains unchanged.
+
 Reuse the approved mascot and existing Material Icons for the initial guide artwork. The user permits generating additional images/icons when needed; the current guide design needs no new raster assets or launcher-icon changes. Capture and inspect the implemented screens with synthetic data, recording viewport, theme, text scale, and whether the image is a Flutter widget render or physical-device screenshot. Keep raw device captures private when they include OS chrome.
 
 ## Acceptance checks for the implementation plan

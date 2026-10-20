@@ -48,7 +48,7 @@ void main() {
         await tester.runAsync(f.pair.dispose);
       });
       await unlockFeature(tester, 'Owner');
-      await settleFeature(tester, until: 'A clear view');
+      await settleFeature(tester, until: 'Company attendance');
       await tester.tap(find.text('More'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Correct company name'));

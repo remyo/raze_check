@@ -1,0 +1,74 @@
+{
+  "date": "2026-10-20",
+  "baseline_commit": "e181f889f38a1cfa2f352e7d69a1464932f182f1",
+  "branch": "dev",
+  "capture_type": "Flutter widget renders; synthetic attendance records; not physical-device evidence",
+  "flutter": "3.44.7",
+  "verified_widths": [
+    320,
+    390,
+    768
+  ],
+  "verified_text_scales": [
+    1.0,
+    2.0
+  ],
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "verification": {
+    "feature_suite_before_final_status_and_touch_target_adjustments": {
+      "passed": 44
+    },
+    "final_affected_feature_tests": {
+      "passed": 5,
+      "files": [
+        "accessibility_test.dart",
+        "full_entry_visual_test.dart",
+        "dashboard_test.dart",
+        "company_switcher_test.dart"
+      ]
+    },
+    "final_host_suite": {
+      "passed": 9
+    },
+    "analysis": "No issues found",
+    "format": "10 files checked; 0 changes",
+    "android_debug": "built build/app/outputs/flutter-apk/app-debug.apk",
+    "ios_simulator_debug": "built build/ios/iphonesimulator/Runner.app",
+    "physical_device_run": false,
+    "independent_final_review": "No remaining findings"
+  },
+  "changed_dart_sha256": {
+    "packages/raze_check_feature/lib/src/company/company_switcher.dart": "af1cb5d7226e3298fd6851afba9e15a13b1f5516882d96c61082cf7f3c8e0715",
+    "packages/raze_check_feature/lib/src/dashboard/manager_home_screen.dart": "4491b6859578a3178705e5d3961f9e45fbf851304025c30612811739320ce17e",
+    "packages/raze_check_feature/lib/src/dashboard/staff_home_screen.dart": "c7a36e6f0a40044e8517970d63190f970f959d854ce693745c807e0206119792",
+    "packages/raze_check_feature/lib/src/profile/profile_gate.dart": "1190d88a5e08126a470893c7bdf2e17fa7690fd75965b552bd76259514da6226",
+    "packages/raze_check_feature/lib/src/theme/check_theme.dart": "a16158f298603662b71dfd93a8ad281e34b9d412898a806f73e9814aed4b78d0",
+    "packages/raze_check_feature/test/backup_dashboard_refresh_test.dart": "b3489ab1be999028d42a3d34ee4f8c41be927bbb3ad9ae781a53390480571088",
+    "packages/raze_check_feature/test/company_name_repair_test.dart": "64d9de365d6e94eeca67b474fadd0ea7e11ac6c0c4b577984ed4c32f45d627d0",
+    "packages/raze_check_feature/test/company_switcher_test.dart": "3e02880e3a226187ce9c1c63728dc30e69a748eb5e4c0165c43846cdc69d6537",
+    "packages/raze_check_feature/test/embedded_entry_test.dart": "35daed8e40e5fca56ab00baaa751ea5d77c36cf094a9fc864558478a31ff2770",
+    "packages/raze_check_feature/test/full_entry_visual_test.dart": "87fef6ee91e321cea5ba319155792c6afa915773a422d9256a3e9163e66a80c3"
+  },
+  "png_sha256": {
+    "full-manager-dark-390.png": "527a42bc98f5142b6bbe1ebedad859e5d0b10ef833d0dfb24e32f4c599973957",
+    "full-manager-dark-768.png": "961c3f498030de84feae65de4889f0dc46ecae391f5f5ffee08722e81bb8c22b",
+    "full-manager-light-320-2x.png": "cfba51170f97aaa896456afefd96beec34b7c2f12d45bb06eadce44b1ab30978",
+    "full-manager-light-390.png": "7306ccdc6c856273372fb3ae968dd9a86e0c029b2fab61971f006b86a6c29d6e",
+    "full-manager-light-768.png": "03ec3a63b9a2f19baba33291e651b50ec1a0ea491710326562e685d87ee7c531",
+    "full-staff-dark-390.png": "0370ed63d4cbfff5fe16d03cf33d1bbf53cfa1d18b196c1f4a07da5d22716816",
+    "full-staff-dark-768.png": "4a976304098f5790b3b3fead338e51084a3f0a67dc1cbd2097e00b0de076472f",
+    "full-staff-light-390.png": "22db03d287cdde2d26dc71db14668d66fe1b9cb4c0a53e9efd153bca60ef230c",
+    "full-staff-light-768.png": "7a568319b6f5257e5caba90ab67b5d4b1fa60fabfbcb3791d261a29d365407a9",
+    "manager-dark-390.png": "beb6518c07136c09bca451ea60e8f2c758dbdac1ecda21c04046c20a7ed8bd21",
+    "manager-dark-768.png": "deef8313613fb6e1822c690902d1a8b57177f5820291dd21404d87f8ca93b952",
+    "manager-light-390.png": "6e1a737573ad71695a1e7fe19f34fde14b3d5ee26a9cc0d113e42121a3384e8e",
+    "manager-light-768.png": "e4fe0ab52cf9292f087045056a892119d7ca785ffe5375b8d75f1d3254867305",
+    "staff-dark-390.png": "9c361d36dccbc99fa98e027d7a6b4a3b8dabb02340ce7384aed795247455aaff",
+    "staff-dark-768.png": "e3fda50156e08af89dc03dda1e4363ef7ebf07d0e93a8133849d9a0514ad1226",
+    "staff-light-390.png": "c4c10bfa8eae2aa1615e1fa1ba1aaca5c989d23ccc598d77e459e17492b2fbe7",
+    "staff-light-768.png": "45b0355f4f51ab6d32d772f1d93da8b7aaad2c9abd31d7cac94dade699cffd97"
+  }
+}

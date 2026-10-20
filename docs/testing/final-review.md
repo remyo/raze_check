@@ -11,3 +11,34 @@ The single Minor finding is known warning-output noise: Drift reports multiple d
 Current physical iPhone signing/testing remains explicitly deferred by the user after the selected Israel team account/profile gap. Hands-on two-phone optical exchange, camera positioning, permission/picker/share/provider interaction, interactive file fallback and airplane-mode/radio isolation remain unverified. Android24/iOS16 runtime floors are unavailable and unverified. Earlier iPhone/process/lifecycle passes retain their original source/signer provenance. This approval closes the scoped implementation/evidence handoff; it does not grant unconditional release readiness, distribution or new device/signing actions.
 
 The full independent review and controller committed-source reconciliation are retained locally in ignored `.superpowers/evidence/2026-10-19-raze-check-foundation/final-handoff.private/sdd/`. Preserve ignored evidence and normal artifacts before worktree removal.
+
+## Approved visual refresh — 20 October 2026
+
+The user approved the full proposed component style, including rounded cards,
+buttons, spacing, grouped metrics, compact company context, and navigation.
+The shared Flutter theme now uses neutral surfaces, a teal action accent,
+16px card corners, 12px button corners, and a minimum 48px control target.
+Small amber review indicators preserve the approved status treatment.
+Attendance values, action callbacks, permissions, and host branding/theming
+remain connected to the existing services.
+
+Independent review found a 44px company-switcher target without a subtitle.
+A focused regression test failed at 44px, then passed after an explicit 48px
+minimum constraint. The final scoped source and screenshot review reported no
+remaining findings. Existing lock/recovery controls, full timestamps, and
+accurate backup/data wording are intentional differences from the HTML example.
+
+Verification: the full feature suite passed 44 tests before the final status-cue
+and switcher adjustments; the five affected dashboard, accessibility, full-shell,
+and switcher tests passed after those adjustments. All nine host tests passed.
+Formatting and `flutter analyze --no-pub` were clean. Android debug APK and iOS
+simulator debug builds both succeeded. Known Drift fixture and plugin KGP
+warnings remain as documented above.
+
+[Visual-refresh captures](screenshots/visual-refresh/full-shell-metadata.txt)
+show actual Flutter rendering with synthetic records. Assertions cover phone
+and tablet widths of 320/390/768px, light/dark themes, and 1×/2× text.
+[Evidence metadata](screenshots/visual-refresh/evidence.json) records the source
+and PNG hashes. These are widget captures, not physical-device evidence; no
+device install or new iPhone signing claim is included. Guided tutorials remain
+planned, with their style references updated to this approved visual system.

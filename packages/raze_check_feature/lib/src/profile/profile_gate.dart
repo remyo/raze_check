@@ -147,7 +147,26 @@ class CheckProfileGateState extends State<CheckProfileGate>
 
       return Scaffold(
         appBar: AppBar(
-          title: const Text('Raze Check'),
+          title: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: SizedBox(
+                  width: 28,
+                  height: 28,
+                  child:
+                      widget.host?.iconBuilder?.call(context) ??
+                      Image.asset(
+                        'packages/raze_check_feature/assets/branding/raze_check_logo_master.png',
+                        semanticLabel: 'Raze Check mascot',
+                      ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Flexible(child: Text('Raze Check')),
+            ],
+          ),
           leading: widget.host == null
               ? null
               : IconButton(
@@ -237,14 +256,37 @@ class CheckProfileGateState extends State<CheckProfileGate>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  widget.host?.iconBuilder?.call(context) ??
-                      Image.asset(
-                        'packages/raze_check_feature/assets/branding/raze_check_logo_master.png',
-                        width: 144,
-                        height: 144,
-                        semanticLabel: 'Raze Check mascot',
-                      ),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: SizedBox(
+                      width: 88,
+                      height: 88,
+                      child:
+                          widget.host?.iconBuilder?.call(context) ??
+                          Image.asset(
+                            'packages/raze_check_feature/assets/branding/raze_check_logo_master.png',
+                            semanticLabel: 'Raze Check mascot',
+                          ),
+                    ),
+                  ),
                   const SizedBox(height: 24),
+                  Text(
+                    'Attendance, made simple',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -.5,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Create a local profile or unlock one to continue.',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
                   FutureBuilder<List<LocalProfile>>(
                     future: _profiles,
                     builder: (context, snapshot) {
@@ -281,11 +323,14 @@ class CheckProfileGateState extends State<CheckProfileGate>
                               }),
                             ),
                           const SizedBox(height: 12),
-                          FilledButton(
-                            onPressed: () => setState(() {
-                              _setup = true;
-                            }),
-                            child: const Text('Create local profile'),
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton(
+                              onPressed: () => setState(() {
+                                _setup = true;
+                              }),
+                              child: const Text('Create local profile'),
+                            ),
                           ),
                           if (widget.companies != null)
                             TextButton(

@@ -48,7 +48,7 @@ void main() {
         );
       });
       await unlockFeature(tester, 'Owner');
-      await settleFeature(tester, until: 'A clear view');
+      await settleFeature(tester, until: 'Company attendance');
       await tester.runAsync(() async {
         await tester.tap(find.text('Backup / recovery'));
         await tester.pump();

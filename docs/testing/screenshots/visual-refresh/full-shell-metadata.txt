@@ -1,0 +1,1 @@
+SYNTHETIC TEST DATA. Actual Flutter RazeCheckFeature with real local services. Independent synthetic staff and manager repositories, one local-only receipt and one manager-received receipt. Bundled Manrope and MaterialIcons loaded. Captures use 1.0 text scale; assertions also cover 320/390/768 at 1.0/2.0. Not physical-device evidence.
