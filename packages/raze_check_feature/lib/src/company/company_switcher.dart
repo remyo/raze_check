@@ -237,11 +237,15 @@ class CompanyWorkspaceState extends State<CompanyWorkspace> {
       check();
     }
 
-    Future<void> navigate(FutureOr<void> Function() open) async {
+    Future<void> navigate(
+      FutureOr<void> Function() open, {
+      bool waitForSceneBinding = true,
+    }) async {
       // Capture the controller request before the second awaited validation.
       // Settings first restores this exact source; drafts remain explanatory.
       await _guides?.navigateToScene(
         open,
+        waitForSceneBinding: waitForSceneBinding,
         validateCurrent: () async {
           await validate();
           if (_hasGuideDraft || _loading || _busy) {
@@ -292,7 +296,8 @@ class CompanyWorkspaceState extends State<CompanyWorkspace> {
                   company != null &&
                   widget.services != null &&
                   widget.host != null)
-                GuideDestination.reports: () => navigate(_report),
+                GuideDestination.reports: () =>
+                    navigate(_report, waitForSceneBinding: false),
             }
           : const {},
     );

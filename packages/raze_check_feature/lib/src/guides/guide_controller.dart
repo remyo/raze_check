@@ -56,10 +56,12 @@ final class GuideController extends ChangeNotifier {
 
   /// Internal panel/route handoff. Capture the original request before any
   /// extra domain validation; canceled callbacks cannot adopt a newer intent.
-  /// A matching bind (or cancellation) completes synchronous panel navigation.
+  /// Panels wait for a matching bind (or cancellation). Routes instead return
+  /// their own future so Show me can discard an intent if no scene mounted.
   Future<void> navigateToScene(
     FutureOr<void> Function() navigate, {
     Future<void> Function()? validateCurrent,
+    bool waitForSceneBinding = true,
   }) async {
     final intent = _pending, source = _context;
     final requestGeneration = _requestGeneration;
@@ -72,7 +74,7 @@ final class GuideController extends ChangeNotifier {
       return;
     }
     await navigate();
-    await intent.completion.future;
+    if (waitForSceneBinding) await intent.completion.future;
   }
 
   int _generation = 0;

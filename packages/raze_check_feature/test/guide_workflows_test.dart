@@ -440,6 +440,53 @@ void main() {
     },
   );
 
+  testWidgets('declined report host completes Show me without mounting', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1000, 1400));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final pair = (await tester.runAsync(TwoDeviceFixture.create))!;
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.runAsync(pair.dispose);
+    });
+    var hostCalls = 0;
+    final guides = await mountWorkflow(
+      tester,
+      pair.manager,
+      host: CheckFeatureHost(
+        onExit: () {},
+        navigate: (context, page, name) async {
+          expect(name, 'attendance-report');
+          hostCalls++;
+        },
+      ),
+      messages: CountedMessages(),
+      attendance: ObservedAttendance(featureServices(pair.manager).attendance),
+    );
+    final source = guides.currentContext!;
+    var finished = false;
+    late Future<void> request;
+    await tester.runAsync(() async {
+      guides.start('reports');
+      request = guides.showDestination().then((_) => finished = true);
+      await tester.pump();
+    });
+    await settleGuide(tester, () => hostCalls == 1);
+    final finishedAfterDecline = finished;
+    expect(find.byType(AttendanceReportScreen), findsNothing);
+    expect(guides.currentContext!.token, same(source.token));
+    guides.skip();
+    await tester.runAsync(() => request);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 1));
+    expect(
+      finishedAfterDecline,
+      isTrue,
+      reason: 'A returned host future must finish the original Show me',
+    );
+  });
+
   testWidgets(
     'report validation cannot push after cancellation or steal a newer request',
     (tester) async {
@@ -949,6 +996,7 @@ Future<GuideController> mountWorkflow(
   EnrollmentDevice device, {
   SessionHandle? session,
   bool personal = true,
+  CheckFeatureHost? host,
   ObservedCompanies? companies,
   required CountedMessages messages,
   required ObservedAttendance attendance,
@@ -968,7 +1016,7 @@ Future<GuideController> mountWorkflow(
               ids: SecureIds(),
               canCreateCompany: personal,
               services: services,
-              host: CheckFeatureHost(onExit: () {}),
+              host: host ?? CheckFeatureHost(onExit: () {}),
               capture: services.capture,
               enrollment: services.enrollment,
               messages: messages,

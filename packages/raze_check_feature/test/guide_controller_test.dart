@@ -60,6 +60,42 @@ void main() {
     );
   }
 
+  test(
+    'returned route without a bind cannot revive on a later ordinary bind',
+    () async {
+      final c = GuideController(catalog: GuideCatalog());
+      await c.initialize();
+      final authority = Object();
+      var opened = false, finished = false;
+      await c.bind(
+        testGuideContext(
+          authorityToken: authority,
+          variants: const {'reports': 'owner'},
+          navigation: {
+            GuideDestination.reports: () => c.navigateToScene(() async {
+              opened = true;
+            }, waitForSceneBinding: false),
+          },
+        ),
+      );
+      c.start('reports');
+      final request = c.showDestination().then((_) => finished = true);
+      await Future<void>.delayed(Duration.zero);
+      final finishedAfterReturn = finished;
+      await c.bind(
+        testGuideContext(
+          authorityToken: authority,
+          destination: GuideDestination.reports,
+          variants: const {'reports': 'owner'},
+        ),
+      );
+      await request;
+      expect(opened, isTrue);
+      expect(finishedAfterReturn, isTrue);
+      expect(c.active, isNull);
+    },
+  );
+
   for (final cancel in [false, true]) {
     test(
       'synchronous panel handoff waits for validated bind or cancellation: $cancel',
