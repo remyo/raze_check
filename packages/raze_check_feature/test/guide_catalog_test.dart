@@ -4,7 +4,7 @@ import 'package:raze_check_feature/src/guides/guide_models.dart';
 
 void main() {
   test(
-    'all 22 approved variants retain semantic positions and safe targets',
+    'all 23 approved variants retain semantic positions and safe targets',
     () {
       const matrix = {
         'welcome': ['public'],
@@ -18,6 +18,7 @@ void main() {
         'backup': ['personal', 'owner'],
         'new-device': [
           'staff-replacement',
+          'staff-management',
           'owner-target',
           'owner-source',
           'owner-recovery',
@@ -56,7 +57,24 @@ void main() {
         }
         index++;
       }
-      expect(variants, 22);
+      expect(variants, 23);
+      expect(
+        catalog.resolve('new-device', 'owner-recovery').steps[2].targetId,
+        isNull,
+      );
+      final management = catalog.resolve('new-device', 'staff-management');
+      expect(
+        management.steps[1].targetId,
+        isNull,
+        reason: 'Fresh identity is prepared on the staff phone',
+      );
+      expect(management.steps[3].body, contains('Authorize replacement'));
+      expect(
+        management.steps[3].body,
+        contains('Export selected staff recovery archive'),
+      );
+      expect(management.steps[4].body, contains('Share replacement grant'));
+      expect(management.steps[4].targetId, isNot('new-device-authorize'));
       final lost = catalog
           .resolve('new-device', 'owner-recovery')
           .steps[3]

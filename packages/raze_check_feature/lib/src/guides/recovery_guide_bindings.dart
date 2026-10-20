@@ -17,6 +17,7 @@ GuideAudience recoveryGuideAudience({
     'welcome': 'public',
     if (!restrictedOperator) 'backup': owner ? 'owner' : 'personal',
     if (switch (recoveryVariant) {
+      'staff-management' => canExportStaffRecovery,
       'staff-replacement' => !restrictedOperator || canExportStaffRecovery,
       'owner-source' => !restrictedOperator && owner,
       'owner-target' || 'owner-recovery' => !restrictedOperator,

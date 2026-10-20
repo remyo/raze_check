@@ -92,7 +92,21 @@ final class GuideController extends ChangeNotifier {
   bool get sessionOnly => _store == null || _failed;
   bool get paused => _paused;
   String? _notice;
-  String? get notice => _notice;
+  String? get persistenceNotice => _failed
+      ? 'Guide progress could not be saved. Progress is kept for this session.'
+      : null;
+  String? get notice => persistenceNotice ?? _notice;
+
+  /// Failure survives transient completion/restart copy and remains available
+  /// in the library even when an inline notice has been closed.
+  String? get presentationNotice {
+    final messages = [
+      ?persistenceNotice,
+      if (_notice != null && _notice != 'Viewed') _notice!,
+    ];
+    return messages.isEmpty ? null : messages.join('\n\n');
+  }
+
   GuideAudience get audience =>
       _context?.audience ??
       GuideAudience(variants: const {'welcome': 'public'});
@@ -100,8 +114,6 @@ final class GuideController extends ChangeNotifier {
   Future<void> _writes = Future.value();
   void _failure() {
     _failed = true;
-    _notice =
-        'Guide progress could not be saved. Progress is kept for this session.';
   }
 
   Future<void> initialize() => _initialization ??= _load();
@@ -236,6 +248,7 @@ final class GuideController extends ChangeNotifier {
     } on ArgumentError {
       return;
     }
+    _notice = null;
     final saved = _entry(guideId, variant);
     var index = 0;
     if (!restart && saved?.stepId != null) {

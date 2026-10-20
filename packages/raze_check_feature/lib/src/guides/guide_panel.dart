@@ -10,8 +10,10 @@ class GuidePanel extends StatefulWidget {
     required this.onNext,
     required this.onSkip,
     this.onShowDestination,
+    this.notice,
   });
   final GuideRun run;
+  final String? notice;
   final VoidCallback onBack, onNext, onSkip;
   final VoidCallback? onShowDestination;
   @override
@@ -71,6 +73,13 @@ class _GuidePanelState extends State<GuidePanel> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (widget.notice != null) ...[
+          Semantics(
+            liveRegion: true,
+            child: Text(widget.notice!, style: theme.textTheme.bodyMedium),
+          ),
+          const SizedBox(height: 12),
+        ],
         GuideArtwork(guideId: run.definition.id, stepIndex: run.stepIndex),
         const SizedBox(height: 12),
         Semantics(

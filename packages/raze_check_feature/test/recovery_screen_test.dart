@@ -10,6 +10,11 @@ import 'package:raze_check_feature/raze_check_feature.dart';
 import 'package:raze_check_local/raze_check_local.dart';
 import '../../raze_check_local/test/support/two_device_fixture.dart';
 import 'support/settle_review.dart';
+import 'package:raze_check_feature/src/guides/guide_catalog.dart';
+import 'package:raze_check_feature/src/guides/guide_controller.dart';
+import 'package:raze_check_feature/src/guides/guide_layer.dart';
+import 'package:raze_check_feature/src/guides/guide_scope.dart';
+import 'package:raze_check_feature/src/guides/guide_target.dart';
 
 void main() {
   testWidgets(
@@ -221,23 +226,36 @@ void main() {
         expect(await target.canIssueAttendance(pair.companyId), isTrue);
       });
       final current = target.identity.requireActor(target.session);
+      final guides = GuideController(catalog: GuideCatalog());
+      await guides.initialize();
+      addTearDown(() async {
+        await tester.runAsync(() async {
+          await tester.pumpWidget(const SizedBox());
+        });
+        guides.dispose();
+      });
       await tester.pumpWidget(
         MaterialApp(
-          home: RecoveryUnlockScreen(
-            identity: target.identity,
-            recoveryIdentity: target.identity,
-            session: target.session,
-            replacement: replacement(target),
-            handover: LocalHandoverService(
-              repository: target.storage.repo,
-              identity: target.identity,
-              keys: target.storage.keys,
-              clock: target.clock,
-              ids: SecureIds(),
-              archives: archives,
+          home: GuideScope(
+            controller: guides,
+            child: GuideLayer(
+              child: RecoveryUnlockScreen(
+                identity: target.identity,
+                recoveryIdentity: target.identity,
+                session: target.session,
+                replacement: replacement(target),
+                handover: LocalHandoverService(
+                  repository: target.storage.repo,
+                  identity: target.identity,
+                  keys: target.storage.keys,
+                  clock: target.clock,
+                  ids: SecureIds(),
+                  archives: archives,
+                ),
+                restores: archives,
+                files: files,
+              ),
             ),
-            restores: archives,
-            files: files,
           ),
         ),
       );
@@ -269,6 +287,37 @@ void main() {
         find.text('Share target request with source device'),
         findsOneWidget,
       );
+      final sentBeforeGuide = sent.length;
+      await tester.ensureVisible(find.text('Source device lost'));
+      await tester.tap(find.text('Source device lost'));
+      await tester.pumpAndSettle();
+      guides.start('new-device', restart: true);
+      guides.next();
+      guides.next();
+      await tester.pumpAndSettle();
+      expect(guides.active?.definition.variantId, 'owner-recovery');
+      expect(guides.active!.definition.steps[2].targetId, isNull);
+      expect(
+        find.ancestor(
+          of: find.widgetWithText(
+            FilledButton,
+            'Share target request with source device',
+          ),
+          matching: find.byWidgetPredicate(
+            (w) => w is GuideTarget && w.id == 'new-device-request',
+          ),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.text('Lost-source recovery requires a usable company backup.'),
+        findsOneWidget,
+      );
+      guides.next();
+      guides.next();
+      guides.next();
+      await tester.pumpAndSettle();
+      expect(sent.length, sentBeforeGuide);
       await tester.runAsync(() async {
         // Disposing a live continuation starts real-I/O cancellation.
         await tester.pumpWidget(const MaterialApp(home: SizedBox()));

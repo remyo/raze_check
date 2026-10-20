@@ -1,4 +1,5 @@
 import '../guides/company_guide_bindings.dart';
+import '../guides/recovery_guide_bindings.dart' show withRecoveryGuidePaused;
 import '../guides/guide_models.dart';
 import '../guides/guide_target.dart';
 import '../guides/guide_invitation.dart';
@@ -352,7 +353,7 @@ class _EnrollmentWorkspaceState extends State<EnrollmentWorkspace> {
 
   @override
   Widget build(BuildContext context) => !_guideReady
-      ? _content()
+      ? Builder(builder: _content)
       : CompanyGuideScene(
           identity: (
             _epoch,
@@ -365,9 +366,9 @@ class _EnrollmentWorkspaceState extends State<EnrollmentWorkspace> {
             _existingEmployeeId,
           ),
           destination: GuideDestination.joinCompany,
-          child: _content(),
+          child: Builder(builder: _content),
         );
-  Widget _content() => SingleChildScrollView(
+  Widget _content(BuildContext source) => SingleChildScrollView(
     padding: const EdgeInsets.all(24),
     child: Column(
       children: [
@@ -406,7 +407,10 @@ class _EnrollmentWorkspaceState extends State<EnrollmentWorkspace> {
                       _candidateBytes!,
                       acceptedRootFingerprint: _fingerprint!,
                     );
-                    final bytes = await widget.pickHistory!(
+                    if (!source.mounted) return;
+                    final bytes = await withRecoveryGuidePaused(
+                      source,
+                      () => widget.pickHistory!(_guard(epoch, session)),
                       _guard(epoch, session),
                     );
                     if (bytes == null) return;

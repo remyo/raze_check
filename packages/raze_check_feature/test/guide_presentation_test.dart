@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:raze_check_core/raze_check_core.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:raze_check_feature/src/guides/guide_anchor_registry.dart';
@@ -44,6 +45,92 @@ Future<void> settleGuide(WidgetTester tester) async {
 }
 
 void main() {
+  for (final failed in [false, true]) {
+    testWidgets(
+      'feature notice is accessible and survives completion failure=$failed',
+      (tester) async {
+        await tester.binding.setSurfaceSize(const Size(320, 640));
+        addTearDown(() => tester.binding.setSurfaceSize(null));
+        final semantics = tester.ensureSemantics();
+        try {
+          final store = MemoryGuideProgressStore(
+            failWrite: failed,
+            snapshot: GuideProgressSnapshot(
+              entries: [
+                const GuideProgress(
+                  guideId: 'reports',
+                  variantId: 'personal',
+                  contentRevision: 1,
+                  stepId: 'removed-step',
+                ),
+              ],
+            ),
+          );
+          final c = GuideController(catalog: GuideCatalog(), store: store);
+          await c.initialize();
+          final scene = testGuideContext(variants: {'reports': 'personal'});
+          await tester.pumpWidget(
+            host(
+              c,
+              GuideScene(context: scene, child: const SizedBox.expand()),
+              scale: 2,
+            ),
+          );
+          await settleGuide(tester);
+          c.start('reports');
+          await settleGuide(tester);
+          expect(c.active?.stepIndex, 0);
+          expect(find.textContaining('This guide changed.'), findsOneWidget);
+          expect(
+            find.bySemanticsLabel(RegExp('This guide changed')),
+            findsWidgets,
+          );
+          if (failed) {
+            expect(
+              find.textContaining('Guide progress could not be saved.'),
+              findsOneWidget,
+            );
+            expect(
+              find.bySemanticsLabel(
+                RegExp('Guide progress could not be saved'),
+              ),
+              findsWidgets,
+            );
+          }
+          while (c.active != null) {
+            c.next();
+          }
+          await settleGuide(tester);
+          expect(c.progress.entries.single.viewed, isTrue);
+          if (failed) {
+            expect(c.notice, contains('could not be saved'));
+            expect(
+              find.textContaining('Guide progress could not be saved.'),
+              findsOneWidget,
+            );
+            expect(
+              find.bySemanticsLabel(
+                RegExp('Guide progress could not be saved'),
+              ),
+              findsWidgets,
+            );
+            await tester.tap(find.text('Close'));
+            await settleGuide(tester);
+            expect(
+              find.textContaining('Guide progress could not be saved.'),
+              findsNothing,
+            );
+            expect(c.persistenceFailed, isTrue);
+          }
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox());
+          c.dispose();
+        } finally {
+          semantics.dispose();
+        }
+      },
+    );
+  }
   testWidgets('absent scope preserves application callbacks', (tester) async {
     var calls = 0;
     await tester.pumpWidget(

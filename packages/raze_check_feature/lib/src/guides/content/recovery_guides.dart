@@ -141,6 +141,51 @@ final recoveryGuides = <GuideDefinition>[
   ),
   GuideDefinition(
     id: "new-device",
+    variantId: "staff-management",
+    revision: 1,
+    title: "Move to a new device",
+    description:
+        "Help a staff member recover received records and authorize their replacement device.",
+    steps: [
+      GuideStep(
+        id: "new-device-path",
+        title: "Approve staff replacement",
+        body:
+            "Select the original employee. Received-record recovery requires both membership management and attendance export permissions.",
+        targetId: "new-device-path",
+        destination: GuideDestination.recovery,
+      ),
+      GuideStep(
+        id: "new-device-identity",
+        title: "Verify the employee and original identity",
+        body:
+            "Give the employee their public company, person and employee IDs and a company invitation. On the staff phone, they verify the full company root fingerprint and use Create fresh replacement request. Verify the person and their replacement device before authorizing.",
+      ),
+      GuideStep(
+        id: "new-device-request",
+        title: "Read staff replacement request",
+        body:
+            "The employee uses Share replacement request on their phone. Here, use Read staff replacement request and verify the selected employee and new installation. Messages use the actual Files controls.",
+        targetId: "new-device-request",
+      ),
+      GuideStep(
+        id: "new-device-archive",
+        title: "Authorize and prepare the staff archive",
+        body:
+            "After verifying the employee and device, use Authorize replacement. This creates the grant and makes Export selected staff recovery archive available. Enter and confirm the staff archive passphrase, then export it. Have staff use Apply received-record archive before receiving the grant. Records never received by management cannot be reconstructed.",
+        targetId: "new-device-authorize",
+      ),
+      GuideStep(
+        id: "new-device-activate",
+        title: "Share replacement grant",
+        body:
+            "After staff applies the archive, use Share replacement grant. On their phone, staff uses Receive replacement grant, follows the actual lock/unlock instructions and verifies retained history. Sharing does not confirm delivery or activation.",
+        targetId: "new-device-activate",
+      ),
+    ],
+  ),
+  GuideDefinition(
+    id: "new-device",
     variantId: "owner-target",
     revision: 1,
     title: "Move to a new device",
@@ -258,7 +303,6 @@ final recoveryGuides = <GuideDefinition>[
         id: "new-device-request",
         title: "Secure the recovery path",
         body: "Lost-source recovery requires a usable company backup.",
-        targetId: "new-device-request",
       ),
       GuideStep(
         id: "new-device-archive",

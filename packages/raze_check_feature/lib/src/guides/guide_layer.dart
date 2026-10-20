@@ -18,6 +18,7 @@ class _GuideLayerState extends State<GuideLayer> {
   GuideController? _controller;
   GuideAnchorRegistry? _registry;
   GuideRun? _run;
+  String? _notice, _dismissedNotice;
   Rect? _target;
   bool _scheduled = false, _visible = false;
   bool _canShowDestination = false;
@@ -60,12 +61,20 @@ class _GuideLayerState extends State<GuideLayer> {
       final target = run != null && id != null && layer is RenderBox
           ? _registry?.bounds(run.contextToken, id, layer)
           : null;
+      final notice =
+          _visible &&
+              _controller?.paused != true &&
+              _controller?.currentContext != null
+          ? _controller?.presentationNotice
+          : null;
       final canShow = _controller?.canShowDestination ?? false;
       if (!identical(_run, run) ||
           _target != target ||
+          _notice != notice ||
           _canShowDestination != canShow) {
         setState(() {
           _run = run;
+          _notice = notice;
           _target = target;
           _canShowDestination = canShow;
         });
@@ -104,6 +113,55 @@ class _GuideLayerState extends State<GuideLayer> {
               fit: StackFit.expand,
               children: [
                 widget.child,
+                if (run == null &&
+                    _visible &&
+                    _notice != null &&
+                    _notice != _dismissedNotice)
+                  Positioned.fill(
+                    child: SafeArea(
+                      minimum: const EdgeInsets.all(12),
+                      child: Align(
+                        alignment: Alignment.bottomCenter,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 440),
+                          child: Material(
+                            color: Theme.of(context).colorScheme.surface,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              side: BorderSide(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.outlineVariant,
+                              ),
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Semantics(
+                                    liveRegion: true,
+                                    child: Text(_notice!),
+                                  ),
+                                  TextButton(
+                                    style: TextButton.styleFrom(
+                                      minimumSize: const Size(48, 48),
+                                    ),
+                                    onPressed: () => setState(
+                                      () => _dismissedNotice = _notice,
+                                    ),
+                                    child: const Text('Close'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 if (run != null)
                   Positioned.fill(
                     child: CustomMultiChildLayout(
@@ -138,6 +196,7 @@ class _GuideLayerState extends State<GuideLayer> {
                           id: 'panel',
                           child: GuidePanel(
                             run: run,
+                            notice: _notice,
                             onBack: _controller!.back,
                             onNext: _controller!.next,
                             onSkip: _controller!.skip,

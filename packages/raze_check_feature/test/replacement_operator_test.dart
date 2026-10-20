@@ -10,6 +10,11 @@ import '../../raze_check_local/test/support/two_device_fixture.dart';
 import '../../raze_check_local/test/recovery_continuation_test.dart'
     as recovery;
 import 'support/settle_review.dart';
+import 'package:raze_check_feature/src/guides/guide_catalog.dart';
+import 'package:raze_check_feature/src/guides/guide_controller.dart';
+import 'package:raze_check_feature/src/guides/guide_layer.dart';
+import 'package:raze_check_feature/src/guides/guide_scope.dart';
+import 'package:raze_check_feature/src/guides/guide_target.dart';
 
 void main() {
   for (final export in [true, false]) {
@@ -86,6 +91,15 @@ void main() {
           await target.storage.dispose();
           await pair.dispose();
         });
+        final guides = GuideController(catalog: GuideCatalog());
+        await guides.initialize();
+        addTearDown(() async {
+          await tester.pumpWidget(const SizedBox());
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 40)),
+          );
+          guides.dispose();
+        });
         final sent = <Uint8List>[];
         final files = RecoveryFiles(
           pickBytes: (_) async => MessageCodec().encode(request),
@@ -101,21 +115,40 @@ void main() {
         await tester.runAsync(() async {
           await tester.pumpWidget(
             MaterialApp(
-              home: ReplacementApprovalScreen(
-                identity: pair.manager.identity,
-                session: pair.manager.session,
-                company: pair.company,
-                companies: pair.manager.companies,
-                enrollment: pair.manager.enrollment,
-                service: recovery.replacement(pair.manager),
-                backups: archives,
-                staffBackups: archives,
-                files: files,
+              home: GuideScope(
+                controller: guides,
+                child: GuideLayer(
+                  child: ReplacementApprovalScreen(
+                    identity: pair.manager.identity,
+                    session: pair.manager.session,
+                    company: pair.company,
+                    companies: pair.manager.companies,
+                    enrollment: pair.manager.enrollment,
+                    service: recovery.replacement(pair.manager),
+                    backups: archives,
+                    staffBackups: archives,
+                    files: files,
+                  ),
+                ),
               ),
             ),
           );
         });
-        await settleReview(tester);
+        await settleApproval(tester, guides, export);
+        expect(
+          guides.audience.variants['new-device'],
+          export ? 'staff-management' : null,
+        );
+        if (export) {
+          guides.start('new-device');
+          await tester.pumpAndSettle();
+          expect(
+            guides.active!.definition.steps.first.body,
+            contains('Select the original employee'),
+          );
+          guides.skip();
+          await tester.pumpAndSettle();
+        }
         await tester.tap(find.byType(DropdownButton<StaffRecord>));
         await tester.pumpAndSettle();
         await tester.tap(find.text(original.details.name).last);
@@ -124,20 +157,71 @@ void main() {
         await tester.runAsync(() async {
           await tester.tap(find.text('Read staff replacement request'));
         });
-        await settleReview(tester);
+        await settleApproval(tester, guides, export);
+        if (export) {
+          guides.start('new-device', restart: true);
+          for (var i = 0; i < 3; i++) {
+            guides.next();
+          }
+          await tester.pumpAndSettle();
+          final step = guides.active!.definition.steps[3];
+          expect(step.body, contains('Authorize replacement'));
+          expect(step.body, contains('before receiving the grant'));
+          expect(
+            find.ancestor(
+              of: find.widgetWithText(FilledButton, 'Authorize replacement'),
+              matching: find.byWidgetPredicate(
+                (w) => w is GuideTarget && w.id == step.targetId,
+              ),
+            ),
+            findsOneWidget,
+          );
+          guides.skip();
+          await tester.pumpAndSettle();
+        }
         await tester.ensureVisible(find.byType(CheckboxListTile));
         await tester.tap(find.byType(CheckboxListTile));
         await tester.pump();
         await tester.runAsync(() async {
           await tester.tap(find.text('Authorize replacement'));
         });
-        await settleReview(tester);
+        await settleApproval(tester, guides, export);
         expect(find.text('Share replacement grant'), findsOneWidget);
+        if (export) {
+          guides.start('new-device', restart: true);
+          for (var i = 0; i < 4; i++) {
+            guides.next();
+          }
+          await tester.pumpAndSettle();
+          final step = guides.active!.definition.steps[4];
+          expect(step.body, contains('Share replacement grant'));
+          expect(
+            find.ancestor(
+              of: find.widgetWithText(FilledButton, 'Share replacement grant'),
+              matching: find.byWidgetPredicate(
+                (w) => w is GuideTarget && w.id == step.targetId,
+              ),
+            ),
+            findsOneWidget,
+          );
+          expect(
+            find.ancestor(
+              of: find.widgetWithText(FilledButton, 'Authorize replacement'),
+              matching: find.byWidgetPredicate(
+                (w) => w is GuideTarget && w.id == step.targetId,
+              ),
+            ),
+            findsNothing,
+          );
+          guides.next();
+          await tester.pumpAndSettle();
+          expect(sent, isEmpty);
+        }
         await tester.ensureVisible(find.text('Share replacement grant'));
         await tester.runAsync(() async {
           await tester.tap(find.text('Share replacement grant'));
         });
-        await settleReview(tester);
+        await settleApproval(tester, guides, export);
         expect(sent, hasLength(1));
         final grant = MessageCodec().decode(sent.single, maxBytes: 65536);
         expect(grant.kind, MessageKind.membershipGrant);
@@ -162,7 +246,7 @@ void main() {
               find.text('Export selected staff recovery archive'),
             );
           });
-          await settleReview(tester);
+          await settleApproval(tester, guides, export);
           expect(sent, hasLength(2));
           expect(sent.last.length, greaterThan(100));
         } else {
@@ -195,4 +279,19 @@ void main() {
       },
     );
   }
+}
+
+Future<void> settleApproval(
+  WidgetTester tester,
+  GuideController guides,
+  bool export,
+) async {
+  await settleReview(tester);
+  for (var i = 0; export && guides.currentContext == null && i < 100; i++) {
+    await tester.pump();
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 20)),
+    );
+  }
+  await tester.pumpAndSettle();
 }

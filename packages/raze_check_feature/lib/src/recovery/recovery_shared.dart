@@ -173,17 +173,19 @@ abstract class RecoveryState<T extends StatefulWidget> extends State<T>
           'Prepare fresh owner installation' ||
           'Prepare company recovery with current identity' =>
             'new-device-identity',
+          'Share target request with source device' =>
+            recoveryVariant == 'owner-target' ? 'new-device-request' : label,
           'Share replacement request' ||
-          'Share target request with source device' ||
           'Freeze source and prepare handover' ||
           'Read staff replacement request' => 'new-device-request',
           'Apply received-record archive' ||
           'Inspect company recovery or handover archive' ||
           'Share exact handover archive' ||
           'Export selected staff recovery archive' => 'new-device-archive',
+          'Authorize replacement' => 'new-device-authorize',
+          'Share replacement grant' => 'new-device-activate',
           'Receive replacement grant' ||
-          'Receive target acknowledgment' ||
-          'Authorize replacement' => 'new-device-activate',
+          'Receive target acknowledgment' => 'new-device-activate',
           'Verify and activate handover' =>
             recoveryVariant == 'owner-target' ? 'new-device-activate' : label,
           'Recover when source device is lost' =>

@@ -35,7 +35,10 @@ dashboardFixture() async {
   );
 }
 
-CheckServices featureServices(EnrollmentDevice d) {
+CheckServices featureServices(
+  EnrollmentDevice d, {
+  Future<ShareOutcome> Function(AttendanceReport, TransferGuard)? shareReport,
+}) {
   final archive = LocalArchiveService(
     paths: d.storage.paths,
     keys: d.storage.keys,
@@ -86,11 +89,13 @@ CheckServices featureServices(EnrollmentDevice d) {
         return ShareOutcome.dismissed;
       },
     ),
-    shareReport: (report, guard) async {
-      await guard();
-      AttendanceCsv.encode(report);
-      return ShareOutcome.dismissed;
-    },
+    shareReport:
+        shareReport ??
+        (report, guard) async {
+          await guard();
+          AttendanceCsv.encode(report);
+          return ShareOutcome.dismissed;
+        },
   );
 }
 

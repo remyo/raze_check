@@ -157,7 +157,9 @@ class _AttendanceReportScreenState
       GuideTarget(
         id: 'reports-csv',
         child: button('Share CSV', () async {
-          final outcome = await widget.services.shareReport(report!, guard);
+          final outcome = await nativeTransfer(
+            () => widget.services.shareReport(report!, guard),
+          );
           if (mounted) {
             setState(
               () => message = outcome == ShareOutcome.opened

@@ -170,6 +170,25 @@ void main() {
   );
 
   test(
+    'management recovery audience requires both export capabilities even for personal profiles',
+    () {
+      for (final restricted in [false, true]) {
+        for (final allowed in [false, true]) {
+          expect(
+            recoveryGuideAudience(
+              restrictedOperator: restricted,
+              owner: true,
+              canExportStaffRecovery: allowed,
+              recoveryVariant: 'staff-management',
+            ).variants['new-device'],
+            allowed ? 'staff-management' : null,
+          );
+        }
+      }
+    },
+  );
+
+  test(
     'staff recovery export needs membership management and attendance export together',
     () {
       for (final management in [false, true]) {

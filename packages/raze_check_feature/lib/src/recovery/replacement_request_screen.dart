@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:raze_check_core/raze_check_core.dart';
 import 'recovery_shared.dart';
+import '../guides/guide_target.dart';
 import '../guides/recovery_guide_bindings.dart';
 
 class ReplacementRequestScreen extends StatefulWidget {
@@ -362,7 +363,7 @@ class _ReplacementApprovalState
   VerifiedMessage? request;
   SignedMessage? grant;
   @override
-  String get recoveryVariant => 'staff-replacement';
+  String get recoveryVariant => 'staff-management';
   @override
   bool get guideCanExport => exportAllowed;
   Membership? _guideMember;
@@ -428,22 +429,25 @@ class _ReplacementApprovalState
   );
   @override
   Widget build(BuildContext context) => frame('Approve staff replacement', [
-    DropdownButton<StaffRecord>(
-      value: selected,
-      hint: const Text('Select the original employee'),
-      isExpanded: true,
-      items: [
-        for (final s in staff)
-          DropdownMenuItem(value: s, child: Text(s.details.name)),
-      ],
-      onChanged: busy
-          ? null
-          : (s) => setState(() {
-              selected = s;
-              request = null;
-              grant = null;
-              confirmed = false;
-            }),
+    GuideTarget(
+      id: 'new-device-path',
+      child: DropdownButton<StaffRecord>(
+        value: selected,
+        hint: const Text('Select the original employee'),
+        isExpanded: true,
+        items: [
+          for (final s in staff)
+            DropdownMenuItem(value: s, child: Text(s.details.name)),
+        ],
+        onChanged: busy
+            ? null
+            : (s) => setState(() {
+                selected = s;
+                request = null;
+                grant = null;
+                confirmed = false;
+              }),
+      ),
     ),
     if (selected != null) ...[
       SelectableText(
