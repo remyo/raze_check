@@ -387,6 +387,66 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  for (final scale in [1.0, 2.0]) {
+    testWidgets(
+      'landscape keyboard leaves scrollable controls at ${scale}x text',
+      (tester) async {
+        final c = await controller();
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        addTearDown(tester.view.resetViewInsets);
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = const Size(640, 320);
+        tester.view.viewInsets = const FakeViewPadding(bottom: 220);
+        await tester.pumpWidget(
+          host(
+            c,
+            GuideScene(
+              context: testGuideContext(),
+              child: const SizedBox.expand(),
+            ),
+            scale: scale,
+          ),
+        );
+        await settleGuide(tester);
+        c.start('welcome');
+        await settleGuide(tester);
+        expect(tester.getSize(find.byType(GuidePanel)).height, 76);
+        expect(tester.takeException(), isNull);
+        expect(find.text('Skip').hitTestable(), findsOneWidget);
+        final skip = tester.getRect(find.widgetWithText(TextButton, 'Skip'));
+        expect(skip.height, greaterThanOrEqualTo(48));
+        expect(
+          tester.getRect(find.byType(GuidePanel)).intersect(skip).height,
+          greaterThanOrEqualTo(48),
+        );
+        final nextFinder = find.widgetWithText(FilledButton, 'Next');
+        await tester.ensureVisible(nextFinder);
+        await settleGuide(tester);
+        final nextRect = tester.getRect(nextFinder);
+        expect(nextRect.height, greaterThanOrEqualTo(48));
+        expect(
+          tester.getRect(find.byType(GuidePanel)).intersect(nextRect).height,
+          greaterThanOrEqualTo(48),
+        );
+        expect(
+          tester.getRect(find.byType(GuidePanel)).contains(nextRect.center),
+          isTrue,
+        );
+        await tester.tap(find.text('Next'));
+        await settleGuide(tester);
+        expect(c.active!.stepIndex, 1);
+        await tester.ensureVisible(find.widgetWithText(TextButton, 'Skip'));
+        await settleGuide(tester);
+        await tester.tap(find.text('Skip'));
+        await settleGuide(tester);
+        expect(c.active, isNull);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets('semantic step, ordered focus and accessible tap targets', (
     tester,
   ) async {
