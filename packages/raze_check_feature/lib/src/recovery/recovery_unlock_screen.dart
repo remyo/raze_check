@@ -83,7 +83,7 @@ class _RecoveryUnlockState extends RecoveryState<RecoveryUnlockScreen> {
   }
 
   Future<void> inspect() async {
-    final path = await widget.files.pickArchive(guard);
+    final path = await nativeTransfer(() => widget.files.pickArchive(guard));
     if (path == null) return;
     try {
       await guard();
@@ -263,7 +263,7 @@ class _RecoveryUnlockState extends RecoveryState<RecoveryUnlockScreen> {
         ),
       ),
       button('Read signed source handover offer', () async {
-        final bytes = await widget.files.pickBytes(guard);
+        final bytes = await nativeTransfer(() => widget.files.pickBytes(guard));
         if (bytes == null) return;
         await guard();
         final m = MessageCodec().decode(

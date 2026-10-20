@@ -33,7 +33,7 @@ class _AuthorityHistoryState extends RecoveryState<AuthorityHistoryScreen> {
       'A phone that missed authority changes needs the missing public certificates before it can verify current messages. Import ordered batches, then retry the original message. History files contain no recovery key, personal records, membership grant, or management activation.',
     ),
     button('Import history from Files', () async {
-      final bytes = await widget.files.pickBytes(guard);
+      final bytes = await nativeTransfer(() => widget.files.pickBytes(guard));
       if (bytes == null) return;
       await guard();
       await widget.service.importHistory(session, widget.company.id, bytes);

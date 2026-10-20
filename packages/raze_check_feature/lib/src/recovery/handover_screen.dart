@@ -92,7 +92,7 @@ class _HandoverScreenState extends RecoveryState<HandoverScreen> {
   }
 
   Future<void> readRequest() async {
-    final bytes = await widget.files.pickBytes(guard);
+    final bytes = await nativeTransfer(() => widget.files.pickBytes(guard));
     if (bytes == null) return;
     await guard();
     final verified = await widget.enrollment.verifyIncoming(session, bytes);
@@ -187,7 +187,9 @@ class _HandoverScreenState extends RecoveryState<HandoverScreen> {
           ),
         ),
         button('Receive target acknowledgment', () async {
-          final bytes = await widget.files.pickBytes(guard);
+          final bytes = await nativeTransfer(
+            () => widget.files.pickBytes(guard),
+          );
           if (bytes == null) return;
           await guard();
           final ack = await widget.enrollment.verifyIncoming(session, bytes);

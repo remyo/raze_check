@@ -63,6 +63,7 @@ class _BackupScreenState extends State<BackupScreen>
   bool _busy = false, _hidden = false;
   BuildContext? _guideSource;
   Membership? _guideMember;
+  int _selectionGeneration = 0;
   Future<void> _validateGuide() async {
     final selection = _selected, member = _guideMember;
     void check() {
@@ -95,17 +96,29 @@ class _BackupScreenState extends State<BackupScreen>
   }
 
   Future<void> _select(String? value) async {
+    final generation = ++_selectionGeneration;
     setState(() {
       _selected = value;
       _guideMember = null;
+      _error = null;
     });
     final scope = _scopes[value];
-    if (scope is CompanyScope) {
-      final member = await widget.companies?.membership(
-        widget.session,
-        scope.companyId,
-      );
-      if (mounted && _selected == value) setState(() => _guideMember = member);
+    try {
+      if (scope is CompanyScope) {
+        final member = await widget.companies?.membership(
+          widget.session,
+          scope.companyId,
+        );
+        if (mounted &&
+            generation == _selectionGeneration &&
+            _selected == value) {
+          setState(() => _guideMember = member);
+        }
+      }
+    } catch (error) {
+      if (mounted && generation == _selectionGeneration && _selected == value) {
+        setState(() => _error = archiveError(error));
+      }
     }
   }
 
@@ -185,7 +198,11 @@ class _BackupScreenState extends State<BackupScreen>
     _confirm.clear();
   });
   Future<void> _inspect() => _run(() async {
-    final path = await widget.pickArchive(_guard);
+    final path = await withRecoveryGuidePaused(
+      _guideSource ?? context,
+      () => widget.pickArchive(_guard),
+      _guard,
+    );
     if (path == null) return;
     RestorePreview? preview;
     try {
@@ -364,10 +381,15 @@ class _BackupScreenState extends State<BackupScreen>
                                             widget.session,
                                             last.artifactId,
                                           );
-                                      final result = await widget.shareArchive(
-                                        bytes,
-                                        _guard,
-                                      );
+                                      final result =
+                                          await withRecoveryGuidePaused(
+                                            _guideSource ?? context,
+                                            () => widget.shareArchive(
+                                              bytes,
+                                              _guard,
+                                            ),
+                                            _guard,
+                                          );
                                       await _guard();
                                       setState(
                                         () => _message =

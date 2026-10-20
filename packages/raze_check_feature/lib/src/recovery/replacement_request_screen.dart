@@ -72,7 +72,7 @@ class _ReplacementRequestState extends RecoveryState<ReplacementRequestScreen> {
   }
 
   Future<void> readInvitation() async {
-    final bytes = await widget.files.pickBytes(guard);
+    final bytes = await nativeTransfer(() => widget.files.pickBytes(guard));
     if (bytes == null) return;
     await guard();
     final m = MessageCodec().decode(bytes, maxBytes: MessageLimits.fileBytes);
@@ -120,7 +120,7 @@ class _ReplacementRequestState extends RecoveryState<ReplacementRequestScreen> {
           invitationBytes!,
           acceptedRootFingerprint: fingerprint!,
         );
-    final bytes = await widget.files.pickBytes(guard);
+    final bytes = await nativeTransfer(() => widget.files.pickBytes(guard));
     if (bytes == null) return;
     await guard();
     await (service as InvitationHistoryService).stageHistory(
@@ -265,7 +265,9 @@ class _ReplacementRequestState extends RecoveryState<ReplacementRequestScreen> {
       ),
       field(archivePass, 'Staff recovery archive passphrase', secret: true),
       button('Apply received-record archive', () async {
-        final path = await widget.files.pickArchive(guard);
+        final path = await nativeTransfer(
+          () => widget.files.pickArchive(guard),
+        );
         if (path == null) return;
         RestorePreview? preview;
         try {
@@ -287,7 +289,7 @@ class _ReplacementRequestState extends RecoveryState<ReplacementRequestScreen> {
         }
       }, enabled: !activated),
       button('Receive replacement grant', () async {
-        final bytes = await widget.files.pickBytes(guard);
+        final bytes = await nativeTransfer(() => widget.files.pickBytes(guard));
         if (bytes == null) return;
         await guard();
         final grant = await widget.service.verifyPendingGrant(
@@ -451,7 +453,7 @@ class _ReplacementApprovalState
         'Give these public identifiers and a company invitation to the employee. Verify the person before approving their new installation.',
       ),
       button('Read staff replacement request', () async {
-        final bytes = await widget.files.pickBytes(guard);
+        final bytes = await nativeTransfer(() => widget.files.pickBytes(guard));
         if (bytes == null) return;
         await guard();
         final r = await widget.enrollment.verifyIncoming(session, bytes);

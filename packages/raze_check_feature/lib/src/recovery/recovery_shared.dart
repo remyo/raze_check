@@ -127,9 +127,12 @@ abstract class RecoveryState<T extends StatefulWidget> extends State<T>
     }
   }
 
+  Future<R> nativeTransfer<R>(Future<R> Function() action) =>
+      withRecoveryGuidePaused(guideSource ?? context, action, guard);
+
   Future<void> send(RecoveryFiles files, Uint8List bytes, String name) async {
     await guard();
-    final outcome = await files.share(bytes, name, guard);
+    final outcome = await nativeTransfer(() => files.share(bytes, name, guard));
     if (mounted) {
       setState(
         () => message = switch (outcome) {

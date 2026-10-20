@@ -87,6 +87,46 @@ Future<void> openRecoveryPage(BuildContext source, Widget page, String name) {
   );
 }
 
+/// Native callbacks can stay in the foreground, so lifecycle visibility alone
+/// is not a pause boundary. Keep the exact source and the existing guard.
+Future<T> withRecoveryGuidePaused<T>(
+  BuildContext source,
+  Future<T> Function() action,
+  Future<void> Function() guard,
+) async {
+  final guides = GuideScope.maybeOf(source);
+  final original = GuideScene.maybeContextOf(source);
+  final wasPaused = guides?.paused ?? false;
+  guides?.setPaused(true);
+  try {
+    return await action();
+  } finally {
+    try {
+      await guard();
+      await original?.validateCurrent();
+      if (!source.mounted ||
+          (original != null &&
+              (!identical(guides?.currentContext?.token, original.token) ||
+                  !identical(
+                    guides?.currentContext?.authorityToken,
+                    original.authorityToken,
+                  )))) {
+        throw StateError('Native recovery source changed');
+      }
+    } catch (_) {
+      if (original != null) {
+        guides?.invalidateAuthority(original.authorityToken);
+      }
+    } finally {
+      final lifecycle = WidgetsBinding.instance.lifecycleState;
+      if (!wasPaused &&
+          (lifecycle == null || lifecycle == AppLifecycleState.resumed)) {
+        guides?.setPaused(false);
+      }
+    }
+  }
+}
+
 class RecoveryGuideSettings extends StatelessWidget {
   const RecoveryGuideSettings({super.key});
   @override

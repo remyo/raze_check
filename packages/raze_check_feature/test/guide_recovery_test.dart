@@ -50,6 +50,11 @@ class Services
     String companyId,
   ) async => null;
   @override
+  Future<Uint8List> shareBytes(
+    SessionHandle session,
+    String artifactId,
+  ) async => Uint8List(1);
+  @override
   String get storageDescription => 'Private storage';
   @override
   Future<ArchiveDescriptor?> last(SessionHandle session) async => existing;
@@ -68,6 +73,38 @@ class DelayedCompanies extends Companies {
     nextRead = null;
     return pending?.future ?? super.membership(session, company);
   }
+}
+
+// Exercises the shared production send/guard path without constructing a signed
+// offer: the native boundary receives opaque bytes and does not verify them.
+class RecoverySendHarness extends StatefulWidget {
+  const RecoverySendHarness({
+    super.key,
+    required this.identity,
+    required this.session,
+    required this.files,
+  });
+  final IdentityService identity;
+  final SessionHandle session;
+  final RecoveryFiles files;
+  @override
+  State<RecoverySendHarness> createState() => _RecoverySendHarnessState();
+}
+
+class _RecoverySendHarnessState extends RecoveryState<RecoverySendHarness> {
+  @override
+  IdentityService get identity => widget.identity;
+  @override
+  SessionHandle get session => widget.session;
+  @override
+  String get recoveryVariant => 'staff-replacement';
+  @override
+  Widget build(BuildContext context) => frame('Recovery send', [
+    button(
+      'Send recovery file',
+      () => send(widget.files, Uint8List(1), 'recovery.razecheck-message'),
+    ),
+  ]);
 }
 
 void main() {
@@ -156,6 +193,201 @@ void main() {
     },
   );
 
+  for (final kind in [
+    'backup picker',
+    'backup share',
+    'recovery picker',
+    'recovery share',
+    'backup picker already paused',
+  ]) {
+    for (final leave in [false, true]) {
+      testWidgets(
+        'foreground $kind pauses guide until exact source returns leave=$leave',
+        (tester) async {
+          await tester.binding.setSurfaceSize(const Size(1100, 1500));
+          addTearDown(() => tester.binding.setSurfaceSize(null));
+          final services = Services(),
+              identity = Identity(),
+              session = Session();
+          services.existing = ArchiveDescriptor(
+            artifactId: 'backup',
+            createdUtcMs: 1,
+            scope: PersonalScope('person'),
+            counts: {},
+          );
+          final controller = GuideController(catalog: GuideCatalog());
+          await controller.initialize();
+          addTearDown(() async {
+            await tester.pumpWidget(const SizedBox());
+            controller.dispose();
+          });
+          final picker = Completer<String?>(),
+              bytes = Completer<Uint8List?>(),
+              share = Completer<ShareOutcome>();
+          final navigator = GlobalKey<NavigatorState>();
+          final Widget screen = kind == 'recovery share'
+              ? RecoverySendHarness(
+                  identity: identity,
+                  session: session,
+                  files: RecoveryFiles(
+                    pickBytes: (_) async => null,
+                    pickArchive: (_) async => null,
+                    releaseArchive: (_) async {},
+                    share: (_, _, _) => share.future,
+                  ),
+                )
+              : kind == 'recovery picker'
+              ? ReplacementRequestScreen(
+                  identity: identity,
+                  recoveryIdentity: services,
+                  session: session,
+                  enrollment: services,
+                  service: services,
+                  restores: services,
+                  files: RecoveryFiles(
+                    pickBytes: (_) => bytes.future,
+                    pickArchive: (_) async => null,
+                    releaseArchive: (_) async {},
+                    share: (_, _, _) async => ShareOutcome.dismissed,
+                  ),
+                )
+              : BackupScreen(
+                  identity: identity,
+                  session: session,
+                  backups: services,
+                  restores: services,
+                  pickArchive: (_) => picker.future,
+                  releaseArchive: (_) async {},
+                  shareArchive: (_, _) => share.future,
+                );
+          await tester.pumpWidget(
+            MaterialApp(
+              navigatorKey: navigator,
+              home: GuideScope(
+                controller: controller,
+                child: GuideLayer(child: screen),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          final guide = kind.startsWith('recovery') ? 'new-device' : 'backup';
+          controller.start(guide);
+          controller.next();
+          final wasPaused = kind.endsWith('already paused');
+          if (wasPaused) controller.setPaused(true);
+          await tester.pumpAndSettle();
+          final button = kind == 'recovery share'
+              ? 'Send recovery file'
+              : kind == 'recovery picker'
+              ? 'Read company invitation'
+              : kind == 'backup share'
+              ? 'Save or share encrypted backup'
+              : 'Choose backup to inspect';
+          // Invoke the actual business control while the guide is active. The
+          // sheet remains foreground: no app lifecycle event is synthesized.
+          final control = tester.widget<ButtonStyleButton>(
+            find.ancestor(
+              of: find.text(button),
+              matching: find.byWidgetPredicate(
+                (widget) => widget is ButtonStyleButton,
+              ),
+            ),
+          );
+          control.onPressed!();
+          await tester.pump();
+          final pausedDuringTransfer = controller.paused;
+          if (leave) {
+            navigator.currentState!.push(
+              MaterialPageRoute<void>(
+                builder: (_) => const Scaffold(body: Text('Other route')),
+              ),
+            );
+            await tester.pumpAndSettle();
+          }
+          picker.complete(null);
+          bytes.complete(null);
+          share.complete(ShareOutcome.dismissed);
+          await tester.pumpAndSettle();
+          expect(pausedDuringTransfer, isTrue);
+          expect(controller.paused, wasPaused);
+          if (leave) {
+            expect(controller.active, isNull);
+            navigator.currentState!.pop();
+            await tester.pumpAndSettle();
+            expect(controller.active, isNull);
+          } else {
+            expect(controller.active?.definition.id, guide);
+            expect(controller.active?.stepIndex, 1);
+          }
+          await tester.pumpWidget(const SizedBox());
+        },
+      );
+    }
+  }
+
+  for (final stale in [false, true]) {
+    testWidgets(
+      'failed backup scope lookup is handled only for current selection stale=$stale',
+      (tester) async {
+        final companies = DelayedCompanies(),
+            services = Services(),
+            controller = GuideController(catalog: GuideCatalog());
+        await controller.initialize();
+        addTearDown(() async {
+          await tester.pumpWidget(const SizedBox());
+          controller.dispose();
+        });
+        await tester.pumpWidget(
+          MaterialApp(
+            home: GuideScope(
+              controller: controller,
+              child: GuideLayer(
+                child: BackupScreen(
+                  identity: Identity(),
+                  session: Session(),
+                  companies: companies,
+                  backups: services,
+                  restores: services,
+                  pickArchive: (_) async => null,
+                  releaseArchive: (_) async {},
+                  shareArchive: (_, _) async => ShareOutcome.dismissed,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final pending = Completer<Membership?>();
+        companies.nextRead = pending;
+        void select(String value) => tester
+            .widget<DropdownButton<String>>(find.byType(DropdownButton<String>))
+            .onChanged!(value);
+        select('Company: Company A (a)');
+        await tester.pumpAndSettle();
+        if (stale) {
+          select('Company: Company B (b)');
+          await tester.pumpAndSettle();
+          select('Company: Company A (a)');
+          await tester.pumpAndSettle();
+        }
+        pending.completeError(const CheckException(CheckError.locked));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        if (stale) {
+          expect(find.byKey(const Key('archive-error')), findsNothing);
+          expect(controller.audience.variants['backup'], 'owner');
+        } else {
+          expect(
+            find.text('Unlock your profile and try again.'),
+            findsOneWidget,
+          );
+          expect(controller.active, isNull);
+        }
+        await tester.pumpWidget(const SizedBox());
+      },
+    );
+  }
+
   testWidgets(
     'backup Next and Skip preserve the real passphrase and perform no transfer or attestation',
     (tester) async {
@@ -168,7 +400,10 @@ void main() {
       );
       final controller = GuideController(catalog: GuideCatalog());
       await controller.initialize();
-      addTearDown(controller.dispose);
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox());
+        controller.dispose();
+      });
       await tester.pumpWidget(
         MaterialApp(
           home: GuideScope(
@@ -224,7 +459,10 @@ void main() {
     final services = Services(),
         controller = GuideController(catalog: GuideCatalog());
     await controller.initialize();
-    addTearDown(controller.dispose);
+    addTearDown(() async {
+      await tester.pumpWidget(const SizedBox());
+      controller.dispose();
+    });
     await tester.pumpWidget(
       MaterialApp(
         home: GuideScope(
@@ -273,7 +511,10 @@ void main() {
           services = Services(),
           controller = GuideController(catalog: GuideCatalog());
       await controller.initialize();
-      addTearDown(controller.dispose);
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox());
+        controller.dispose();
+      });
       await tester.pumpWidget(
         MaterialApp(
           home: GuideScope(
@@ -321,7 +562,10 @@ void main() {
           controller = GuideController(catalog: GuideCatalog());
       final session = Session();
       await controller.initialize();
-      addTearDown(controller.dispose);
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox());
+        controller.dispose();
+      });
       final files = RecoveryFiles(
         pickBytes: (_) async => null,
         pickArchive: (_) async => null,
@@ -383,7 +627,10 @@ void main() {
           services = Services(),
           controller = GuideController(catalog: GuideCatalog());
       await controller.initialize();
-      addTearDown(controller.dispose);
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox());
+        controller.dispose();
+      });
       await tester.pumpWidget(
         MaterialApp(
           home: GuideScope(
@@ -514,7 +761,10 @@ void main() {
         final services = Services(), identity = Identity(), session = Session();
         final controller = GuideController(catalog: GuideCatalog());
         await controller.initialize();
-        addTearDown(controller.dispose);
+        addTearDown(() async {
+          await tester.pumpWidget(const SizedBox());
+          controller.dispose();
+        });
         final files = RecoveryFiles(
           pickBytes: (_) async {
             services.calls.add('pick');
