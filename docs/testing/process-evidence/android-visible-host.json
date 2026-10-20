@@ -1,0 +1,14 @@
+{
+  "run": "task13-android-visible-20261020",
+  "case": "visible",
+  "oldPid": 28592,
+  "newPid": 28827,
+  "killSucceeded": true,
+  "oldPidAbsent": true,
+  "platform": "Samsung SM-S931Q Android16/API36",
+  "build": "e5b1465a44645d471612f474a58f5695a31211a4886df1b4895a970985041ac7",
+  "date": "2026-10-20T02:47:36.970328+00:00",
+  "noReinstallBetweenKillAndRelaunch": true,
+  "synthetic": true,
+  "mechanism": "adb am force-stop; same installed activity am start"
+}

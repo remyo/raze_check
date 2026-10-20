@@ -40,6 +40,91 @@ Uint8List wire(String id) => Uint8List.fromList(
 );
 void main() {
   testWidgets(
+    'repeated scanner callbacks persist one real signed attendance import',
+    (tester) async {
+      final pair = (await tester.runAsync(TwoDeviceFixture.create))!;
+      addTearDown(() => tester.runAsync(pair.dispose));
+      final receipt = (await tester.runAsync(() async {
+        await pair.enrollStaff();
+        return pair.captureCheckIn();
+      }))!;
+      final attendance = service(pair.manager);
+      late ValueChanged<List<Uint8List>> callbacks;
+      Future<void>? imported;
+      final before = (await tester.runAsync(
+        () => pair.manager.storage.repo.snapshot(CompanyScope(pair.companyId)),
+      ))!;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () async {
+                final bytes = await Navigator.push<Uint8List>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ScanScreen(
+                      camera: (cb) {
+                        callbacks = cb;
+                        return const Text('controlled camera delivery');
+                      },
+                      allowed: {MessageKind.attendance},
+                      guard: () async {},
+                      pickFile: () async => null,
+                      pickImage: () async => null,
+                    ),
+                  ),
+                );
+                if (bytes != null) {
+                  imported = () async {
+                    final verified = await attendance.verifyIncoming(
+                      pair.manager.session,
+                      pair.companyId,
+                      bytes,
+                    );
+                    final result = await attendance.importReceipt(
+                      pair.context(SecureIds().next()),
+                      verified,
+                    );
+                    expect(result.status, ImportStatus.received);
+                  }();
+                }
+              },
+              child: const Text('Scan real receipt'),
+            ),
+          ),
+        ),
+      );
+      // Start the route and its continuation in the real-I/O zone as well as
+      // awaiting it there; an already-started fake-zone future can starve I/O.
+      await tester.runAsync(() async {
+        await tester.tap(find.text('Scan real receipt'));
+        await tester.pumpAndSettle();
+        callbacks([receipt.bytes]);
+        callbacks([receipt.bytes]);
+        await tester.pumpAndSettle();
+        expect(imported, isNotNull);
+        await imported!.timeout(const Duration(seconds: 20));
+      });
+      final after = (await tester.runAsync(
+        () => pair.manager.storage.repo.snapshot(CompanyScope(pair.companyId)),
+      ))!;
+      expect(after.events.where((r) => r.kind == 'attendance'), hasLength(1));
+      expect(
+        after.records.where((r) => r.kind == 'receiptImport'),
+        hasLength(1),
+      );
+      expect(after.operations.length, before.operations.length + 1);
+      expect(after.journal.length, before.journal.length + 1);
+      expect(
+        after.events.singleWhere((r) => r.kind == 'attendance').payload,
+        orderedEquals(receipt.bytes),
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    },
+  );
+
+  testWidgets(
     'restricted management operator can start authorized enrollment transfer',
     (tester) async {
       final pair = (await tester.runAsync(TwoDeviceFixture.create))!;

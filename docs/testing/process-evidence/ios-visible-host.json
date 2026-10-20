@@ -1,0 +1,16 @@
+{
+  "run": "task13-ios-visible-20261020",
+  "case": "visible",
+  "oldPid": 8053,
+  "newPid": 8057,
+  "killSucceeded": true,
+  "oldPidAbsent": true,
+  "platform": "iPhone12Pro iOS17.6.1",
+  "build": "fb172c0d968ab38239e4f20cafd3ceb46a12bacd88036189ecc45458e15a6779",
+  "date": "2026-10-20T03:12:42.512571+00:00",
+  "noReinstallBetweenKillAndRelaunch": true,
+  "sameExecutableUrl": true,
+  "relaunch": "devicectl start-stopped; standard Flutter-generated LLDB JIT helper",
+  "synthetic": true,
+  "mechanism": "CoreDevice SIGKILL; same installed executable start-stopped; exact-PID LLDB stopped event then continue"
+}

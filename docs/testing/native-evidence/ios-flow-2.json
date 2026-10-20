@@ -1,0 +1,15 @@
+{
+  "companyId": "e6db9b74-6a7f-4bb4-b084-f2a260b56424",
+  "eventId": "fc1fafe8-14e6-42bf-9b51-7ea1be9c11a0",
+  "operationId": "9e941b2f-ac74-416c-8154-8f9fc81ba5d9",
+  "transportSha256": "ZrHuJQ7pAuih1kckaly6lypxE+dM2F7g3muqvqcHL/M=",
+  "payloadSha256": "A8sze4RWnab4rGUSUtaFYz5B7vrPY/ssQLpfk5ksRYY=",
+  "transportBytes": 708,
+  "events": 1,
+  "outbox": 1,
+  "mode": "logical stores; graceful reopen; not OS process-death evidence",
+  "deviceClass": "iPhone12Pro iOS17.6.1",
+  "entrypoint": "integration_test/foundation_suite_test.dart",
+  "artifactHash": "70955bbe16fa66e18bf0f39b439811cf24f4e0254260ad6a2a255e32d3d6d627",
+  "synthetic": true
+}

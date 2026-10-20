@@ -4,7 +4,7 @@ Date: 2026-10-18
 
 Last revised: 2026-10-19 — standalone Raze Check first, future Raze Store embedding, durable local replicas, and recovery boundaries.
 
-Status: Product design approved by the user on 2026-10-19. Standalone foundation implementation planning authorized; application implementation has not started. Launch targets confirmed: Android and iOS together.
+Status: Product design approved by the user on2026-10-19. The standalone foundation is implemented through Tasks1–12 and is undergoing Task13 acceptance and final review; [current evidence](../../testing/foundation-acceptance.md) distinguishes verified behavior from outstanding gates. Launch targets remain Android and iOS together.
 
 ## 1. Purpose and agreed direction
 

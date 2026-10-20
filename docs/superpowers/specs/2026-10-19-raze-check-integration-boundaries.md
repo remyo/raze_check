@@ -2,7 +2,7 @@
 
 Date: 2026-10-19
 
-Status: Design approved by the user on 2026-10-19. Raze Store integration remains on hold while the standalone Android/iOS foundation is planned. No Flutter packages, native bridge, replication engine, or Raze Store integration have been implemented.
+Status: Design approved by the user on2026-10-19. The standalone Android/iOS host and reusable core/local/feature packages are implemented and undergoing [acceptance and final review](../../testing/foundation-acceptance.md). Raze Store integration remains on hold; no Store bridge or cross-app replication engine has been implemented.
 
 Parent: [Attendance and staff management product design](2026-10-18-attendance-management-design.md).
 

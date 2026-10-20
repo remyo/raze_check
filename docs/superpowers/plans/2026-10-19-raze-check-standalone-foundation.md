@@ -10,7 +10,7 @@
 
 **Spec:** [Approved product design](../specs/2026-10-18-attendance-management-design.md) and [approved integration boundaries](../specs/2026-10-19-raze-check-integration-boundaries.md). Read both before execution.
 
-**Status:** Implementation plan for user review. Design approved 2026-10-19; user confirmed Android and iOS together. No application code or dependencies have been created/installed by planning.
+**Status:** Design approved2026-10-19; Tasks1–12 implemented and independently reviewed. Task13 acceptance and final whole-branch review are in progress. The standalone host and reusable packages now exist; Android and iOS remain joint targets. See [current acceptance evidence](../../testing/foundation-acceptance.md) for actual verification and outstanding gates. Original checklists below retain the approved execution plan; they are not a substitute for recorded results.
 
 ## Global Constraints
 
@@ -149,7 +149,7 @@ Task 5 implements this logical registry. Each payload begins with `[companyId, m
 | authorityTransfer | targetReplacementRequestId, snapshotManifestId, snapshotSha256Base64Url, nextAuthority, sourceAuthority |
 | transferAck | transferMessageId, snapshotManifestId, snapshotSha256Base64Url, authority |
 
-`joinRequest`/`replacementRequest` are self-signed requests, not authorization. `membershipGrant` establishes staff attendance access only; management permissions remain in the owner's local capability history. A decision without a correction repeats the original effective fields. A resolved correction receives a new decision revision and correction ID; retain the prior receipt and decision history. `messageId` is the event ID for attendance messages. The protocol document defines test vectors for this registry, not new fields without a format/version change.
+`joinRequest`/`replacementRequest` are self-signed requests, not authorization. `membershipGrant` establishes staff attendance access only; management permissions remain in the owner's local capability history. A decision without a correction carries the current effective fields and current attendance review snapshot; correction outcomes remain independent. A resolved correction receives a new decision revision and correction ID; retain the prior receipt and decision history. `messageId` is the event ID for attendance messages. The protocol document defines test vectors for this registry, not new fields without a format/version change.
 
 ### Test notation
 
@@ -226,7 +226,7 @@ Define `commitExample` in the fixture using `commit`, a fixed context/request di
 - [ ] Run local repository and migration tests; expect absent repository/schema failure.
 - [ ] Implement Drift in application-support storage with `NativeDatabase.createInBackground`, foreign keys, transactional journal+entity+outbox commits, encrypted payloads, and company-filtered reads. Never emit a successful result or revision notification before commit. Schema upgrades use versioned migrations and fail without resetting user data.
 - [ ] Implement bounded logical snapshots under a consistent read transaction. Keep attachment manifests stable during snapshot; attachment bytes are immutable/content-addressed until snapshot completion. A queued UI operation has a durable operation ID before execution so retry after process death is idempotent.
-- [ ] Run `cd packages/raze_check_local && "$DART_BIN" run build_runner build --delete-conflicting-outputs`, then local repository/migration tests and analysis; expect pass and deterministic generated output. The build-runner deletion flag applies only to conflicting generated outputs, not user data.
+- [ ] Run `cd packages/raze_check_local && "$DART_BIN" run build_runner build`, then local repository/migration tests and analysis; expect pass and deterministic generated output. The resolved generator no longer accepts the old deletion flag; regenerate and inspect only intended generated outputs.
 - [ ] Commit: `git commit -m "feat: persist encrypted records and idempotent commands"`.
 
 ## Task 4: Companies, staff records, and company-scoped permissions

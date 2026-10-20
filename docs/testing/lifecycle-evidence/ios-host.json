@@ -1,0 +1,17 @@
+{
+  "platform": "ios",
+  "run": "task13-ios-clean-20261020",
+  "entrypoint": "integration_test/clean_install_recovery_test.dart",
+  "date": "2026-10-20T03:20:09.465229+00:00",
+  "externalArchiveSha256": "433b0329d47c345223be8c278790d782b25b390a4d10a9382b6522dcfb16e4ca",
+  "externalArchiveBytes": 20498,
+  "userAuthorizedDisposableLifecycle": true,
+  "namespaceFresh": true,
+  "historicalKeychainNotCleared": true,
+  "priorOwnedArtifactSha256": "fb172c0d968ab38239e4f20cafd3ceb46a12bacd88036189ecc45458e15a6779",
+  "artifactSha256": "d01aad751abd2d2caaa2a956cf8a985172359d16d266d7be6e9d5f5df02dbcd5",
+  "uninstallConfirmedAbsent": true,
+  "driverExit": 0,
+  "result": "passed",
+  "endedUtc": "2026-10-20T03:23:20.194122+00:00"
+}

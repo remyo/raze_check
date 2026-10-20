@@ -1,0 +1,17 @@
+{
+  "run": "task13-ios-before-20261020",
+  "case": "before",
+  "oldPid": 8034,
+  "newPid": 8041,
+  "killSucceeded": true,
+  "oldPidAbsent": true,
+  "platform": "iPhone12Pro iOS17.6.1",
+  "build": "1f31c3e1ae5ac63a58195c7bfe14a8a7b98f17b8c99210bb53f8a043ccf43ad9",
+  "date": "2026-10-20T03:04:04.753613+00:00",
+  "noReinstallBetweenKillAndRelaunch": true,
+  "sameExecutableUrl": true,
+  "relaunch": "devicectl start-stopped; standard Flutter-generated LLDB JIT helper",
+  "synthetic": true,
+  "mechanism": "CoreDevice SIGKILL; same installed executable start-stopped; exact-PID LLDB stopped event then continue",
+  "initialDebuggerAttempts": "SIGKILL intercepted; owned debugger closed and old PID absent. Initial fresh PID 8038 attach/continue attempts did not produce post; retained separately. Fresh PID 8041 event-gated resume produced post."
+}

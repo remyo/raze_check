@@ -1,0 +1,15 @@
+{
+  "run": "task13-ios-before-20261020",
+  "case": "before",
+  "platform": "iPhone12Pro iOS17.6.1",
+  "build": "1f31c3e1ae5ac63a58195c7bfe14a8a7b98f17b8c99210bb53f8a043ccf43ad9",
+  "date": "2026-10-20T03:04:04.753613+00:00",
+  "operationId": "73365e8e-bd38-4211-8653-ea86a0180017",
+  "eventId": "2fd55268-f3a9-4095-a45e-399005649fb1",
+  "transportSha256": "7d8154d48b8df010288837176a96cbc903f34351182a4a7dd0da35d863ea700a",
+  "payloadSha256": "e504bbef94952f95599c1fd8492acaddb95ca76b93201f0c417dc7f491d11d53",
+  "eventCount": 1,
+  "outboxCount": 1,
+  "result": "passed",
+  "scope": "logical stores on the recorded device; not two-phone camera acceptance"
+}

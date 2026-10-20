@@ -1,0 +1,14 @@
+{
+  "run": "task13-android-before-20261020",
+  "case": "before",
+  "oldPid": 27183,
+  "newPid": 27439,
+  "killSucceeded": true,
+  "oldPidAbsent": true,
+  "platform": "Samsung SM-S931Q Android16/API36",
+  "build": "a7c809ea658e380893acfc432b70938171b4830153cfc520104801b8922cf5d5",
+  "date": "2026-10-20T02:44:40.934424+00:00",
+  "noReinstallBetweenKillAndRelaunch": true,
+  "synthetic": true,
+  "mechanism": "adb am force-stop; same installed activity am start"
+}

@@ -1,0 +1,17 @@
+{
+  "platform": "android",
+  "run": "task13-android-clean-20261020",
+  "entrypoint": "integration_test/clean_install_recovery_test.dart",
+  "date": "2026-10-20T03:15:21.630262+00:00",
+  "externalArchiveSha256": "b2fff47912f27cbcb2305ea8bbeb4f71b372a242e4709d084528d2613c806c83",
+  "externalArchiveBytes": 20420,
+  "userAuthorizedDisposableLifecycle": true,
+  "namespaceFresh": true,
+  "historicalKeychainNotCleared": true,
+  "priorOwnedArtifactSha256": "e5b1465a44645d471612f474a58f5695a31211a4886df1b4895a970985041ac7",
+  "artifactSha256": "9f0ad22122d09bfb81e211442c7d1c2a62acbfcc3a4fb5b7be6bd490894163fd",
+  "uninstallConfirmedAbsent": true,
+  "driverExit": 0,
+  "result": "passed",
+  "endedUtc": "2026-10-20T03:16:03.982809+00:00"
+}

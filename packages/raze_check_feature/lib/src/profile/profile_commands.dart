@@ -22,7 +22,10 @@ final class ProfileCommands {
 String profileError(CheckError code) => switch (code) {
   CheckError.wrongSecret => 'The passphrase is incorrect. Try again.',
   CheckError.recoveryRequired =>
-    'Local keys are missing. An explicit recovery archive is required.',
+    'This device cannot unlock the saved data because a local security key is '
+        'missing. Restore your verified external backup in Raze Check on another '
+        'device or a fresh installation. Recovery cannot start here. Keep the '
+        'existing data until you have usable recovery material.',
   CheckError.locked => 'The session is locked. Unlock again.',
   CheckError.storageFailure => 'Could not save or read local data. Try again.',
   CheckError.invalidSignature =>

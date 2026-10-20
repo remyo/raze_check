@@ -1,0 +1,15 @@
+{
+  "run": "task13-android-committed-20261020",
+  "case": "committed",
+  "platform": "Samsung SM-S931Q Android16/API36",
+  "build": "d30eb29a4fe5ba63221aa28b785e638daa8b3b2cd038374eac9f9f2d622f61f2",
+  "date": "2026-10-20T02:46:21.389183+00:00",
+  "operationId": "eab9ed49-c3da-4c99-80ba-b2bb56e44db9",
+  "eventId": "9c3e985c-a306-4e3d-8f87-0edc195f20ff",
+  "transportSha256": "89c15439378c7119074112f04910763faf7a6fb21d0f125047d1ae847c42610e",
+  "payloadSha256": "548357fc5534ca5155856937d9efdf997b486416164d0c8d2f33e4e4a09ca21b",
+  "eventCount": 1,
+  "outboxCount": 1,
+  "result": "passed",
+  "scope": "logical stores on the recorded device; not two-phone camera acceptance"
+}

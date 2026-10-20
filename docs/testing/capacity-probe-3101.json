@@ -1,0 +1,194 @@
+{
+  "provenance": {
+    "baselineEvents": 3101,
+    "baselineRevision": 3204,
+    "companyId": "0e42dfd2-ab90-445f-924c-766f835a56f8",
+    "personId": "82080c37-fa8d-44a1-9dd4-64663f11882e",
+    "base": "186ab549e3d6a469a61eebf548bbe6f010755b83",
+    "sourceManifestSha256": "67ff2681a74a9f9cdaa0973befa996d8703afe176552d36361c03aab466e456f",
+    "capturedUtc": "2026-10-20T02:18:43.260189+00:00",
+    "method": "SQLite online backup from live read-only baseline; matching synthetic catalog and manager keys only",
+    "baselinePreserved": true,
+    "originalTimingSample": false,
+    "sqliteSha256": "d4cbc31555704acbec6184a7898647bf2ab8c22aa806a28ad53c62454791e95a"
+  },
+  "extraDiagnosticStaff": 1,
+  "phases": {
+    "verify": {
+      "elapsedUs": 99043,
+      "sql.stored.calls": 107,
+      "sql.stored.rows": 308,
+      "sql.stored.maxRows": 102,
+      "sql.stored.bodyBytes": 105694,
+      "aes.maxConcurrentOpens": 102,
+      "aes.opens": 308,
+      "aes.sealedBytes": 105694,
+      "aes.plainBytes": 96762,
+      "rssBytes": 219168768
+    },
+    "freshImport": {
+      "elapsedUs": 564610,
+      "sql.stored.calls": 226,
+      "sql.stored.rows": 3715,
+      "sql.other.calls": 2,
+      "sql.other.rows": 1,
+      "sql.operations.calls": 1,
+      "sql.operations.rows": 0,
+      "sql.stored.maxRows": 3101,
+      "sql.stored.bodyBytes": 1835271,
+      "aes.maxConcurrentOpens": 3101,
+      "aes.opens": 3715,
+      "aes.sealedBytes": 1835271,
+      "aes.plainBytes": 1727536,
+      "sql.other.maxRows": 1,
+      "aes.attendanceStateOpens": 3101,
+      "aes.seals": 6,
+      "aes.sealPlainBytes": 5767,
+      "rssBytes": 242122752
+    },
+    "sameOperationReplay": {
+      "elapsedUs": 220857,
+      "sql.stored.calls": 215,
+      "sql.stored.rows": 614,
+      "sql.other.calls": 1,
+      "sql.other.rows": 0,
+      "sql.operations.calls": 1,
+      "sql.operations.rows": 1,
+      "sql.operations.maxRows": 1,
+      "sql.operations.bodyBytes": 1797,
+      "aes.maxConcurrentOpens": 102,
+      "aes.opens": 615,
+      "aes.sealedBytes": 212526,
+      "aes.operationOpens": 1,
+      "aes.plainBytes": 194691,
+      "sql.owners.calls": 1,
+      "sql.owners.rows": 0,
+      "sql.stored.maxRows": 102,
+      "sql.stored.bodyBytes": 210729,
+      "rssBytes": 241827840
+    },
+    "newOperationDuplicate": {
+      "elapsedUs": 181629,
+      "sql.stored.calls": 216,
+      "sql.stored.rows": 615,
+      "sql.other.calls": 2,
+      "sql.other.rows": 1,
+      "sql.operations.calls": 1,
+      "sql.operations.rows": 0,
+      "sql.stored.maxRows": 102,
+      "sql.stored.bodyBytes": 211826,
+      "aes.maxConcurrentOpens": 102,
+      "aes.opens": 615,
+      "aes.sealedBytes": 211826,
+      "aes.plainBytes": 193991,
+      "sql.other.maxRows": 1,
+      "aes.seals": 1,
+      "aes.sealPlainBytes": 1780,
+      "rssBytes": 241975296
+    },
+    "firstHistory100": {
+      "elapsedUs": 51233,
+      "sql.other.calls": 1,
+      "sql.other.rows": 1,
+      "sql.other.maxRows": 1,
+      "sql.stored.calls": 203,
+      "sql.stored.rows": 203,
+      "sql.stored.maxRows": 1,
+      "sql.stored.bodyBytes": 93393,
+      "aes.maxConcurrentOpens": 1,
+      "aes.opens": 303,
+      "aes.sealedBytes": 167093,
+      "aes.plainBytes": 158306,
+      "sql.history.calls": 1,
+      "sql.history.rows": 100,
+      "sql.history.maxRows": 100,
+      "sql.history.bodyBytes": 73700,
+      "aes.attendanceStateOpens": 100,
+      "rssBytes": 242466816
+    },
+    "secondHistory100": {
+      "elapsedUs": 54720,
+      "sql.other.calls": 1,
+      "sql.other.rows": 1,
+      "sql.other.maxRows": 1,
+      "sql.stored.calls": 203,
+      "sql.stored.rows": 203,
+      "sql.stored.maxRows": 1,
+      "sql.stored.bodyBytes": 93380,
+      "aes.maxConcurrentOpens": 1,
+      "aes.opens": 303,
+      "aes.sealedBytes": 167080,
+      "aes.plainBytes": 158293,
+      "sql.history.calls": 1,
+      "sql.history.rows": 100,
+      "sql.history.maxRows": 100,
+      "sql.history.bodyBytes": 73700,
+      "aes.attendanceStateOpens": 100,
+      "rssBytes": 242434048
+    },
+    "wholeArchiveTraversal": {
+      "elapsedUs": 6276100,
+      "sql.history.calls": 16739,
+      "sql.history.rows": 32460,
+      "sql.history.maxRows": 32,
+      "sql.history.bodyBytes": 13306131,
+      "aes.maxConcurrentOpens": 1,
+      "aes.opens": 19439,
+      "aes.sealedBytes": 19068335,
+      "aes.plainBytes": 18504604,
+      "aes.attendanceStateOpens": 3102,
+      "sql.operations.calls": 3311,
+      "sql.operations.rows": 6418,
+      "sql.operations.maxRows": 32,
+      "sql.operations.bodyBytes": 5762204,
+      "aes.operationOpens": 3209,
+      "sql.owners.calls": 6418,
+      "sql.owners.rows": 3209,
+      "sql.owners.maxRows": 1,
+      "sql.journal.calls": 3209,
+      "sql.journal.rows": 3209,
+      "sql.journal.maxRows": 1,
+      "sql.other.calls": 16316,
+      "sql.other.rows": 31637,
+      "sql.other.maxRows": 32,
+      "rssBytes": 245907456
+    }
+  },
+  "visitedLogicalItems": 38467,
+  "queryPlans": {
+    "journalOperation": [
+      {
+        "id": 3,
+        "parent": 0,
+        "notused": 62,
+        "detail": "SEARCH revision_journal USING INDEX sqlite_autoindex_revision_journal_1 (company_id=?)"
+      }
+    ],
+    "journalRevision": [
+      {
+        "id": 3,
+        "parent": 0,
+        "notused": 39,
+        "detail": "SEARCH revision_journal USING INDEX sqlite_autoindex_revision_journal_1 (company_id=? AND revision=?)"
+      }
+    ],
+    "owners": [
+      {
+        "id": 2,
+        "parent": 0,
+        "notused": 216,
+        "detail": "SCAN personal_operations"
+      }
+    ],
+    "history": [
+      {
+        "id": 5,
+        "parent": 0,
+        "notused": 51,
+        "detail": "SEARCH r USING INDEX sqlite_autoindex_stored_rows_1 (company_id=? AND id>?)"
+      }
+    ]
+  },
+  "finalDiagnosticEvents": 3102,
+  "maxRssBytes": 250675200
+}

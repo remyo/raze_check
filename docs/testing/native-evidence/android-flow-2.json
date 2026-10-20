@@ -1,0 +1,15 @@
+{
+  "companyId": "481d04b9-4fa7-43ae-bbce-95698c7b7392",
+  "eventId": "f305a445-ed17-4133-ad58-bdb10f3898bb",
+  "operationId": "6ca27407-8635-4c21-bc04-78fac9506219",
+  "transportSha256": "apj2lG9xEY1Mk4gKKlbmTnIfFyggsoXxk7eJBurZ+6I=",
+  "payloadSha256": "mKG0EpnKRb3AKogFARNjBJqOBRLkELXRaSyIJNgWIs8=",
+  "transportBytes": 708,
+  "events": 1,
+  "outbox": 1,
+  "mode": "logical stores; graceful reopen; not OS process-death evidence",
+  "deviceClass": "Samsung SM-S931Q Android16/API36",
+  "entrypoint": "integration_test/foundation_suite_test.dart",
+  "artifactHash": "c81b9c6e3f74fe6175946fb5a76135b085323334046d260b94221cc9894da264",
+  "synthetic": true
+}

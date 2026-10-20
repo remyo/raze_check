@@ -1,4 +1,7 @@
 // Physical devices only. iOS Simulator analyzeImage is explicitly unsupported.
+// Task13 scanner-to-real-service duplicate coverage is in feature
+// test/transfer_context_test.dart; these cases specifically exercise native decode.
+// foundation_suite_test.dart composes this exact suite for prebuilt iOS execution.
 // Run automatic image tests first; opt into interactive camera/Files/share only
 // with a free device, airplane mode set by its operator, and fixture prepared.
 import 'dart:convert';
