@@ -6,7 +6,7 @@ final managementGuides = <GuideDefinition>[
     variantId: "staff",
     revision: 1,
     title: "Review attendance and corrections",
-    description: "Learn review attendance and corrections.",
+    description: "Read attendance decisions, corrections, and signed history.",
     steps: [
       GuideStep(
         id: "review-details",
@@ -50,7 +50,7 @@ final managementGuides = <GuideDefinition>[
     variantId: "owner",
     revision: 1,
     title: "Review attendance and corrections",
-    description: "Learn review attendance and corrections.",
+    description: "Read attendance decisions, corrections, and signed history.",
     steps: [
       GuideStep(
         id: "review-details",
@@ -95,7 +95,7 @@ final managementGuides = <GuideDefinition>[
     variantId: "operator",
     revision: 1,
     title: "Review attendance and corrections",
-    description: "Learn review attendance and corrections.",
+    description: "Read attendance decisions, corrections, and signed history.",
     steps: [
       GuideStep(
         id: "review-details",
@@ -140,7 +140,8 @@ final managementGuides = <GuideDefinition>[
     variantId: "owner",
     revision: 1,
     title: "Manage staff and operator access",
-    description: "Learn manage staff and operator access.",
+    description:
+        "Understand staff records and company-scoped operator capabilities.",
     steps: [
       GuideStep(
         id: "team-open",
@@ -177,7 +178,8 @@ final managementGuides = <GuideDefinition>[
     variantId: "operator",
     revision: 1,
     title: "Manage staff and operator access",
-    description: "Learn manage staff and operator access.",
+    description:
+        "Understand staff records and company-scoped operator capabilities.",
     steps: [
       GuideStep(
         id: "team-open",
@@ -214,7 +216,7 @@ final managementGuides = <GuideDefinition>[
     variantId: "personal",
     revision: 1,
     title: "Read and export attendance reports",
-    description: "Learn read and export attendance reports-",
+    description: "Choose a report scope, date range, and permitted CSV export.",
     steps: [
       GuideStep(
         id: "reports-scope",
@@ -245,7 +247,7 @@ final managementGuides = <GuideDefinition>[
     variantId: "owner",
     revision: 1,
     title: "Read and export attendance reports",
-    description: "Learn read and export attendance reports-",
+    description: "Choose a report scope, date range, and permitted CSV export.",
     steps: [
       GuideStep(
         id: "reports-scope",
@@ -276,7 +278,7 @@ final managementGuides = <GuideDefinition>[
     variantId: "operator",
     revision: 1,
     title: "Read and export attendance reports",
-    description: "Learn read and export attendance reports-",
+    description: "Choose a report scope, date range, and permitted CSV export.",
     steps: [
       GuideStep(
         id: "reports-scope",

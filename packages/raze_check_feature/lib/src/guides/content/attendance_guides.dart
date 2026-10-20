@@ -6,7 +6,7 @@ final attendanceGuides = <GuideDefinition>[
     variantId: "staff",
     revision: 1,
     title: "Check in and check out",
-    description: "Learn check in and check out.",
+    description: "Understand workplace codes and separate attendance receipts.",
     steps: [
       GuideStep(
         id: "capture-open",
@@ -43,7 +43,7 @@ final attendanceGuides = <GuideDefinition>[
     variantId: "owner",
     revision: 1,
     title: "Check in and check out",
-    description: "Learn check in and check out.",
+    description: "Understand workplace codes and separate attendance receipts.",
     steps: [
       GuideStep(
         id: "capture-open",
@@ -81,7 +81,7 @@ final attendanceGuides = <GuideDefinition>[
     variantId: "staff",
     revision: 1,
     title: "Send receipts and receive updates",
-    description: "Learn send receipts and receive updates.",
+    description: "Share saved receipts and distinguish delivery from approval.",
     steps: [
       GuideStep(
         id: "exchange-outbox",

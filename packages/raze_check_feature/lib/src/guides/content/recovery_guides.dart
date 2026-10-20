@@ -6,7 +6,8 @@ final recoveryGuides = <GuideDefinition>[
     variantId: "personal",
     revision: 1,
     title: "Back up and restore records",
-    description: "Learn back up and restore records.",
+    description:
+        "Keep a verified encrypted backup and inspect records before restoring.",
     steps: [
       GuideStep(
         id: "backup-scope",
@@ -20,7 +21,7 @@ final recoveryGuides = <GuideDefinition>[
         id: "backup-create",
         title: "Create encrypted backup",
         body:
-            "Enter and confirm a backup passphrase of at least 12 characters, then Create encrypted backup- Keep the passphrase separately.",
+            "Enter and confirm a backup passphrase of at least 12 characters, then Create encrypted backup. Keep the passphrase separately.",
         targetId: "backup-create",
       ),
       GuideStep(
@@ -51,7 +52,8 @@ final recoveryGuides = <GuideDefinition>[
     variantId: "owner",
     revision: 1,
     title: "Back up and restore records",
-    description: "Learn back up and restore records.",
+    description:
+        "Keep a verified encrypted backup and inspect records before restoring.",
     steps: [
       GuideStep(
         id: "backup-scope",
@@ -65,7 +67,7 @@ final recoveryGuides = <GuideDefinition>[
         id: "backup-create",
         title: "Create encrypted backup",
         body:
-            "Enter and confirm a backup passphrase of at least 12 characters, then Create encrypted backup- Keep the passphrase separately.",
+            "Enter and confirm a backup passphrase of at least 12 characters, then Create encrypted backup. Keep the passphrase separately.",
         targetId: "backup-create",
       ),
       GuideStep(
@@ -96,7 +98,8 @@ final recoveryGuides = <GuideDefinition>[
     variantId: "staff-replacement",
     revision: 1,
     title: "Move to a new device",
-    description: "Learn move to a new device.",
+    description:
+        "Follow the recovery or handover path available to your current role.",
     steps: [
       GuideStep(
         id: "new-device-path",
@@ -141,7 +144,8 @@ final recoveryGuides = <GuideDefinition>[
     variantId: "owner-target",
     revision: 1,
     title: "Move to a new device",
-    description: "Learn move to a new device.",
+    description:
+        "Follow the recovery or handover path available to your current role.",
     steps: [
       GuideStep(
         id: "new-device-path",
@@ -186,7 +190,8 @@ final recoveryGuides = <GuideDefinition>[
     variantId: "owner-source",
     revision: 1,
     title: "Move to a new device",
-    description: "Learn move to a new device.",
+    description:
+        "Follow the recovery or handover path available to your current role.",
     steps: [
       GuideStep(
         id: "new-device-path",
@@ -231,7 +236,8 @@ final recoveryGuides = <GuideDefinition>[
     variantId: "owner-recovery",
     revision: 1,
     title: "Move to a new device",
-    description: "Learn move to a new device.",
+    description:
+        "Follow the recovery or handover path available to your current role.",
     steps: [
       GuideStep(
         id: "new-device-path",
@@ -251,21 +257,21 @@ final recoveryGuides = <GuideDefinition>[
       GuideStep(
         id: "new-device-request",
         title: "Secure the recovery path",
-        body: "Lost-source recovery requires a usable company backup-",
+        body: "Lost-source recovery requires a usable company backup.",
         targetId: "new-device-request",
       ),
       GuideStep(
         id: "new-device-archive",
         title: "Inspect the matching archive",
         body:
-            "Inspect the matching company recovery/handover archive and checkpoint. Source shares Share exact handover archive and Share signed handover offer. Missing records cannot be reconstructed. Use Files-based message controls.",
+            "Inspect the available company recovery backup and its checkpoint, record counts, and conflicts. Records absent from that backup cannot be reconstructed. This lost-source path does not require a new response from the missing source device.",
         targetId: "new-device-archive",
       ),
       GuideStep(
         id: "new-device-activate",
         title: "Recover when source device is lost",
         body:
-            "Use Recover when source device is lost with a usable company backup- Follow actual lock/unlock instructions and verify retained history; deleted-app cache is not a recovery source.",
+            "Use Recover when source device is lost with a usable company backup. Follow actual lock/unlock instructions and verify retained history; deleted-app cache is not a recovery source.",
         targetId: "new-device-activate",
       ),
     ],

@@ -6,7 +6,8 @@ final welcomeCompanyGuides = <GuideDefinition>[
     variantId: "public",
     revision: 1,
     title: "Welcome to Raze Check",
-    description: "Learn welcome to raze check.",
+    description:
+        "Understand profiles, attendance receipts, and keeping records safe.",
     steps: [
       GuideStep(
         id: "welcome-offline",
@@ -39,7 +40,7 @@ final welcomeCompanyGuides = <GuideDefinition>[
         id: "welcome-help",
         title: "Protect your records",
         body:
-            "Keep a verified external encrypted backup- Reopen these guides in Settings → Help & Guides.",
+            "Keep a verified external encrypted backup. Reopen these guides in Settings → Help & Guides.",
         targetId: null,
       ),
     ],
@@ -49,7 +50,8 @@ final welcomeCompanyGuides = <GuideDefinition>[
     variantId: "personal",
     revision: 1,
     title: "Set up and switch companies",
-    description: "Learn set up and switch companies-",
+    description:
+        "Create or join a company and understand company-specific access.",
     steps: [
       GuideStep(
         id: "companies-choose",
@@ -75,7 +77,7 @@ final welcomeCompanyGuides = <GuideDefinition>[
         id: "companies-switch",
         title: "Switch company",
         body:
-            "Confirm the current company and available actions. With an open draft choose Keep editing or Discard draft. Permissions belong to each membership-",
+            "Confirm the current company and available actions. With an open draft choose Keep editing or Discard draft. Permissions belong to each membership.",
         targetId: "companies-switch",
       ),
     ],
@@ -85,7 +87,7 @@ final welcomeCompanyGuides = <GuideDefinition>[
     variantId: "staff",
     revision: 1,
     title: "Invite staff or join a company",
-    description: "Learn invite staff or join a company.",
+    description: "Follow invitations, join requests, and membership approval.",
     steps: [
       GuideStep(
         id: "membership-open",
@@ -120,7 +122,7 @@ final welcomeCompanyGuides = <GuideDefinition>[
         id: "membership-approve",
         title: "Receive approval",
         body:
-            "Management reads the join request, explicitly approves it, and returns membership-",
+            "Management reads the join request, explicitly approves it, and returns membership.",
         targetId: null,
       ),
       GuideStep(
@@ -137,7 +139,7 @@ final welcomeCompanyGuides = <GuideDefinition>[
     variantId: "owner",
     revision: 1,
     title: "Invite staff or join a company",
-    description: "Learn invite staff or join a company.",
+    description: "Follow invitations, join requests, and membership approval.",
     steps: [
       GuideStep(
         id: "membership-open",
@@ -172,7 +174,7 @@ final welcomeCompanyGuides = <GuideDefinition>[
         id: "membership-approve",
         title: "Receive approval",
         body:
-            "Management reads the join request, explicitly approves it, and returns membership-",
+            "Management reads the join request, explicitly approves it, and returns membership.",
         targetId: "membership-approve",
       ),
       GuideStep(
@@ -189,7 +191,7 @@ final welcomeCompanyGuides = <GuideDefinition>[
     variantId: "operator",
     revision: 1,
     title: "Invite staff or join a company",
-    description: "Learn invite staff or join a company.",
+    description: "Follow invitations, join requests, and membership approval.",
     steps: [
       GuideStep(
         id: "membership-open",
@@ -224,7 +226,7 @@ final welcomeCompanyGuides = <GuideDefinition>[
         id: "membership-approve",
         title: "Receive approval",
         body:
-            "Management reads the join request, explicitly approves it, and returns membership-",
+            "Management reads the join request, explicitly approves it, and returns membership.",
         targetId: "membership-approve",
       ),
       GuideStep(

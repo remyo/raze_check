@@ -7,6 +7,87 @@ import 'package:raze_check_feature/src/guides/guide_models.dart';
 import 'support/guide_fixture.dart';
 
 void main() {
+  for (final action in ['skip', 'start', 'next', 'back', 'pause']) {
+    test('Show me validation is canceled by $action', () async {
+      var validations = 0, calls = 0;
+      final gate = Completer<void>();
+      final c = GuideController(catalog: GuideCatalog());
+      await c.initialize();
+      await c.bind(
+        testGuideContext(
+          variants: const {'companies': 'personal', 'welcome': 'public'},
+          validateCurrent: () async {
+            if (++validations > 1) await gate.future;
+          },
+          navigation: {
+            GuideDestination.createCompany: () async {
+              calls++;
+            },
+          },
+        ),
+      );
+      c.start('companies');
+      final navigation = c.showDestination();
+      switch (action) {
+        case 'skip':
+          c.skip();
+        case 'start':
+          c.start('welcome');
+        case 'next':
+          c.next();
+        case 'back':
+          c.back();
+        case 'pause':
+          c.setPaused(true);
+          c.setPaused(false);
+      }
+      gate.complete();
+      await navigation;
+      expect(calls, 0);
+    });
+  }
+  for (final action in ['next', 'back', 'skip', 'start', 'pause']) {
+    test('pending Show me position is canceled by $action', () async {
+      final gate = Completer<void>(), authority = Object();
+      final c = GuideController(catalog: GuideCatalog());
+      await c.initialize();
+      await c.bind(
+        testGuideContext(
+          authorityToken: authority,
+          variants: const {'companies': 'personal', 'welcome': 'public'},
+          navigation: {GuideDestination.createCompany: () => gate.future},
+        ),
+      );
+      c.start('companies');
+      final navigation = c.showDestination();
+      await Future<void>.delayed(Duration.zero);
+      switch (action) {
+        case 'next':
+          c.next();
+        case 'back':
+          c.back();
+        case 'skip':
+          c.skip();
+        case 'start':
+          c.start('welcome');
+        case 'pause':
+          c.setPaused(true);
+          c.setPaused(false);
+      }
+      await c.bind(
+        testGuideContext(
+          authorityToken: authority,
+          destination: GuideDestination.createCompany,
+          variants: const {'companies': 'personal'},
+        ),
+      );
+      expect(c.active, isNull);
+      gate.complete();
+      await navigation;
+      expect(c.active, isNull);
+    });
+  }
+
   test('invitation dismissal suppresses another permitted variant', () async {
     final c = GuideController(catalog: GuideCatalog());
     await c.initialize();

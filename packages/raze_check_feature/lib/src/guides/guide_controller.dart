@@ -27,6 +27,13 @@ final class GuideController extends ChangeNotifier {
   GuideContext? _binding;
   _Intent? _pending;
   int _generation = 0;
+  int _requestGeneration = 0;
+
+  void _cancelNavigation() {
+    _requestGeneration++;
+    _pending = null;
+  }
+
   bool _ready = false, _failed = false, _paused = false;
   bool get ready => _ready;
   bool get persistenceFailed => _failed;
@@ -138,7 +145,7 @@ final class GuideController extends ChangeNotifier {
     } on ArgumentError {
       return;
     }
-    _pending = null;
+    _cancelNavigation();
     final saved = _entry(guideId, variant);
     var index = 0;
     if (!restart && saved?.stepId != null) {
@@ -208,6 +215,7 @@ final class GuideController extends ChangeNotifier {
   }
 
   void next() {
+    _cancelNavigation();
     final run = _active;
     if (run == null || paused) return;
     if (run.stepIndex == run.definition.steps.length - 1) {
@@ -226,6 +234,7 @@ final class GuideController extends ChangeNotifier {
   }
 
   void back() {
+    _cancelNavigation();
     final run = _active;
     if (run == null || paused || run.stepIndex == 0) return;
     _active = GuideRun(
@@ -237,7 +246,7 @@ final class GuideController extends ChangeNotifier {
   }
 
   void skip() {
-    _pending = null;
+    _cancelNavigation();
     _saveRun(dismiss: true);
     _active = null;
     notifyListeners();
@@ -288,11 +297,19 @@ final class GuideController extends ChangeNotifier {
   Future<void> showDestination() async {
     if (!canShowDestination) return;
     final context = _context!, run = _active!, generation = _generation;
+    _cancelNavigation();
+    final requestGeneration = _requestGeneration;
     final destination = run.definition.steps[run.stepIndex].destination!;
     _Intent? request;
     try {
       await context.validateCurrent();
-      if (generation != _generation || !identical(_context, context)) return;
+      if (generation != _generation ||
+          requestGeneration != _requestGeneration ||
+          paused ||
+          !identical(_active, run) ||
+          !identical(_context, context)) {
+        return;
+      }
       final intent = _Intent(run, destination, context.authorityToken);
       request = intent;
       _pending = intent;
@@ -306,6 +323,7 @@ final class GuideController extends ChangeNotifier {
   }
 
   void setPaused(bool paused) {
+    if (paused) _cancelNavigation();
     _paused = paused;
     notifyListeners();
   }
