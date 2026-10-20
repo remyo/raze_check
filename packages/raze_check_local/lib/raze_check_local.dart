@@ -28,3 +28,5 @@ export 'src/recovery/local_handover_service.dart';
 
 export 'src/attendance/local_attendance_queries.dart';
 export 'src/files/attendance_csv.dart';
+
+export 'src/guides/local_guide_progress_store.dart';

@@ -49,3 +49,5 @@ export 'src/recovery/device_replacement_service.dart';
 export 'src/recovery/handover_service.dart';
 
 export 'src/attendance/attendance_queries.dart';
+
+export 'src/guides/guide_progress.dart';
