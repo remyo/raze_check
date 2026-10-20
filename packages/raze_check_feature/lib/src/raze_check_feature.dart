@@ -1,5 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:raze_check_core/raze_check_core.dart';
+import 'guides/guide_catalog.dart';
+import 'guides/guide_controller.dart';
+import 'guides/guide_scope.dart';
 import 'host/check_services.dart';
 import 'host/check_feature_host.dart';
 import 'profile/profile_gate.dart';
@@ -26,7 +30,12 @@ class RazeCheckFeature extends StatefulWidget {
 class _RazeCheckFeatureState extends State<RazeCheckFeature>
     with WidgetsBindingObserver {
   final navigator = GlobalKey<NavigatorState>();
+  final gate = GlobalKey<CheckProfileGateState>();
   bool hidden = false;
+  late final guides = GuideController(
+    store: widget.host.guideProgress,
+    catalog: GuideCatalog(),
+  );
   late final messages = FeatureMessagePort(
     context: () => navigator.currentContext!,
     create: widget.services.transfer,
@@ -35,23 +44,29 @@ class _RazeCheckFeatureState extends State<RazeCheckFeature>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    unawaited(guides.initialize());
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    final authority = guides.currentContext?.authorityToken;
+    if (authority != null) guides.invalidateAuthority(authority);
+    unawaited(guides.flush().whenComplete(guides.dispose));
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    guides.setPaused(state != AppLifecycleState.resumed);
     setState(() => hidden = state != AppLifecycleState.resumed);
   }
 
   Future<void> recovery(SessionHandle session) async {
     final s = widget.services;
     s.identity.requireActor(session);
-    final context = navigator.currentContext!;
+    final context = gate.currentState?.routingContext;
+    if (context == null) return;
     Future<void> backup() => widget.host.open(
       context,
       BackupScreen(
@@ -111,22 +126,26 @@ class _RazeCheckFeatureState extends State<RazeCheckFeature>
             ),
           ),
         ),
-        child: Navigator(
-          key: navigator,
-          onGenerateRoute: (_) => MaterialPageRoute<void>(
-            builder: (_) => CheckProfileGate(
-              identity: s.identity,
-              companies: s.companies,
-              enrollment: s.enrollment,
-              capture: s.capture,
-              attendance: s.attendance,
-              messages: messages,
-              attendanceMessages: messages,
-              pickHistory: s.files.pickBytes,
-              onRecovery: recovery,
-              services: s,
-              host: widget.host,
-              initialCompanyId: widget.initialCompanyId,
+        child: GuideScope(
+          controller: guides,
+          child: Navigator(
+            key: navigator,
+            onGenerateRoute: (_) => MaterialPageRoute<void>(
+              builder: (_) => CheckProfileGate(
+                key: gate,
+                identity: s.identity,
+                companies: s.companies,
+                enrollment: s.enrollment,
+                capture: s.capture,
+                attendance: s.attendance,
+                messages: messages,
+                attendanceMessages: messages,
+                pickHistory: s.files.pickBytes,
+                onRecovery: recovery,
+                services: s,
+                host: widget.host,
+                initialCompanyId: widget.initialCompanyId,
+              ),
             ),
           ),
         ),

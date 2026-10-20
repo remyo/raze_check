@@ -81,6 +81,8 @@ void main() {
           ),
         );
       });
+      await settleFeature(tester, until: 'Unlock Owner');
+      expect(find.text('Step 1 of 5'), findsNothing);
       await unlockFeature(tester, 'Owner');
       await settleFeature(tester, until: 'Company attendance');
       expect(find.textContaining('Offline company'), findsWidgets);

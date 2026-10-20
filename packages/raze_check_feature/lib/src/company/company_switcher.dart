@@ -95,6 +95,7 @@ class CompanyWorkspace extends StatefulWidget {
     this.host,
     this.initialCompanyId,
     this.onRecovery,
+    this.onSettings,
     this.enrollment,
     this.messages,
     this.pickHistory,
@@ -106,6 +107,7 @@ class CompanyWorkspace extends StatefulWidget {
   final CheckFeatureHost? host;
   final String? initialCompanyId;
   final Future<void> Function()? onRecovery;
+  final VoidCallback? onSettings;
   final CompanyService companies;
   final EnrollmentService? enrollment;
   final EnrollmentMessagePort? messages;
@@ -1062,6 +1064,11 @@ class CompanyWorkspaceState extends State<CompanyWorkspace> {
           OutlinedButton(
             onPressed: widget.onRecovery,
             child: const Text('Backup and device recovery'),
+          ),
+        if (widget.onSettings != null)
+          OutlinedButton(
+            onPressed: widget.onSettings,
+            child: const Text('Settings'),
           ),
         Text('Company ID: ${_selected!.id}'),
         Text('Trusted root: ${_selected!.rootFingerprint}'),

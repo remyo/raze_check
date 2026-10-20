@@ -4,10 +4,23 @@ import 'guide_catalog.dart';
 import 'guide_models.dart';
 
 final class _Intent {
-  _Intent(this.run, this.destination, this.authority);
+  _Intent(this.run, this.destination, this.authority, this.originToken);
   final GuideRun run;
   final GuideDestination destination;
   final Object authority;
+  final Object? originToken;
+  bool returning = true;
+
+  bool acceptsOrigin(GuideContext context) =>
+      returning &&
+      originToken != null &&
+      identical(originToken, context.token) &&
+      identical(authority, context.authorityToken);
+
+  bool acceptsDestination(GuideContext context) =>
+      identical(authority, context.authorityToken) &&
+      destination == context.destination &&
+      context.audience.variants[run.definition.id] == run.definition.variantId;
 }
 
 /// Owns explanatory progress; callbacks may only open guarded screens.
@@ -24,6 +37,7 @@ final class GuideController extends ChangeNotifier {
   GuideRun? _active;
   GuideRun? get active => _active;
   GuideContext? _context;
+  GuideContext? get currentContext => _context;
   GuideContext? _binding;
   _Intent? _pending;
   int _generation = 0;
@@ -77,6 +91,12 @@ final class GuideController extends ChangeNotifier {
   }
 
   Future<void> bind(GuideContext context) async {
+    final pending = _pending;
+    if (pending != null &&
+        !pending.acceptsOrigin(context) &&
+        !pending.acceptsDestination(context)) {
+      _cancelNavigation();
+    }
     final generation = ++_generation;
     _active = null;
     _context = null;
@@ -93,13 +113,15 @@ final class GuideController extends ChangeNotifier {
     if (generation != _generation) return;
     _binding = null;
     final intent = _pending;
-    _pending = null;
     _context = context;
-    if (intent != null &&
-        identical(intent.authority, context.authorityToken) &&
-        intent.destination == context.destination &&
-        context.audience.variants[intent.run.definition.id] ==
-            intent.run.definition.variantId) {
+    // The captured origin is an intermediate route during explicit Show me.
+    // Do not consume its intent before the guarded destination can mount.
+    if (intent != null && intent.acceptsOrigin(context)) {
+      notifyListeners();
+      return;
+    }
+    _pending = null;
+    if (intent != null && intent.acceptsDestination(context)) {
       _active = GuideRun(
         definition: intent.run.definition,
         stepIndex: intent.run.stepIndex,
@@ -310,9 +332,34 @@ final class GuideController extends ChangeNotifier {
           !identical(_context, context)) {
         return;
       }
-      final intent = _Intent(run, destination, context.authorityToken);
+      final intent = _Intent(
+        run,
+        destination,
+        context.authorityToken,
+        context.originReturn?.token,
+      );
       request = intent;
       _pending = intent;
+      final originReturn = context.originReturn;
+      if (originReturn != null) {
+        await originReturn.returnToOrigin();
+        if (!identical(_pending, intent) ||
+            requestGeneration != _requestGeneration ||
+            paused ||
+            _context == null ||
+            !intent.acceptsOrigin(_context!)) {
+          return;
+        }
+        await context.validateCurrent();
+        if (!identical(_pending, intent) ||
+            requestGeneration != _requestGeneration ||
+            paused ||
+            _context == null ||
+            !intent.acceptsOrigin(_context!)) {
+          return;
+        }
+      }
+      intent.returning = false;
       await context.navigation[destination]!();
       // A mounted destination consumes the intent. A return without a mount
       // means canceled or unrelated navigation, and must not revive guidance.

@@ -133,6 +133,8 @@ class _CheckAppState extends State<CheckApp> {
         ),
       ),
       host: CheckFeatureHost(
+        guideProgress: s.guideProgress,
+        guides: const GuidePresentationConfig(automaticWelcome: true),
         onExit: () => SystemNavigator.pop(),
         iconBuilder: (_) => Image.asset(
           'assets/branding/raze_check_logo_master.png',

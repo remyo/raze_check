@@ -1,4 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:raze_check_feature/src/guides/guide_catalog.dart';
+import 'package:raze_check_feature/src/guides/guide_controller.dart';
+import '../packages/raze_check_feature/test/support/guide_fixture.dart';
 import 'dart:typed_data';
 import 'package:raze_check/app/local_composition.dart';
 import 'package:raze_check_core/raze_check_core.dart';
@@ -8,6 +11,40 @@ import '../packages/raze_check_local/test/support/repository_fixture.dart'
     show RepositorySession;
 
 void main() {
+  test(
+    'guide step three persists through composition close and reopen',
+    () async {
+      final paths = await tempPaths();
+      addTearDown(() => paths.root.delete(recursive: true));
+      final keys = MemoryKeyStore();
+      var s = await LocalComposition.open(paths: paths, secureKeys: keys);
+      final first = GuideController(
+        store: s.guideProgress,
+        catalog: GuideCatalog(),
+      );
+      await first.initialize();
+      await first.bind(testGuideContext());
+      first.start('welcome');
+      first.next();
+      first.next();
+      await first.flush();
+      await s.close();
+      first.dispose();
+      s = await LocalComposition.open(paths: paths, secureKeys: keys);
+      final second = GuideController(
+        store: s.guideProgress,
+        catalog: GuideCatalog(),
+      );
+      await second.initialize();
+      await second.bind(testGuideContext());
+      second.start('welcome');
+      expect(second.active!.stepIndex, 2);
+      expect(second.progress.welcomeDismissed, isFalse);
+      await second.flush();
+      second.dispose();
+      await s.close();
+    },
+  );
   test(
     'real composition persists companies and independent operator unlock across reopen',
     () async {

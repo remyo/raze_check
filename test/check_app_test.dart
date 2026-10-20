@@ -4,6 +4,8 @@ import 'package:raze_check/app/check_app.dart';
 import 'package:raze_check/app/local_composition.dart';
 import 'package:raze_check_core/raze_check_core.dart';
 import 'package:raze_check_local/raze_check_local.dart';
+import '../packages/raze_check_feature/test/guide_entry_test.dart'
+    show drainGuideFuture;
 import '../packages/raze_check_local/test/support/fake_clock.dart';
 import '../packages/raze_check_local/test/support/memory_key_store.dart';
 import '../packages/raze_check_local/test/support/temp_paths.dart';
@@ -52,6 +54,22 @@ Future<void> settleIo(WidgetTester tester) async {
 
 void main() {
   late AppPaths paths;
+  testWidgets(
+    'standalone composition opts into welcome before profile creation',
+    (tester) async {
+      final s = (await tester.runAsync(
+        () => LocalComposition.open(paths: paths, secureKeys: MemoryKeyStore()),
+      ))!;
+      await tester.pumpWidget(CheckApp(composition: Future.value(s)));
+      await settleIo(tester);
+      expect(find.text('Step 1 of 5'), findsOneWidget);
+      await tester.tap(find.text('Skip'));
+      await settleIo(tester);
+      expect(find.text('Create local profile'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await drainGuideFuture(tester, s.close());
+    },
+  );
   late LocalIdentityService identity;
   setUp(() async {
     paths = await tempPaths();

@@ -5,6 +5,7 @@ import 'package:raze_check_local/raze_check_local.dart';
 final class LocalComposition {
   LocalComposition._({
     required this.identity,
+    required this.guideProgress,
     required this.repository,
     required this.vaultKeys,
     required this.attachments,
@@ -20,6 +21,7 @@ final class LocalComposition {
     required this.history,
   });
   final LocalIdentityService identity;
+  final LocalGuideProgressStore guideProgress;
   final LocalCheckRepository repository;
   final VaultKeys vaultKeys;
   final ImmutableAttachmentStore attachments;
@@ -67,6 +69,7 @@ final class LocalComposition {
       await archives.resume();
       await identity.resumeRecoveryIdentities();
       return LocalComposition._(
+        guideProgress: LocalGuideProgressStore(paths: localPaths),
         archives: archives,
         replacement: LocalDeviceReplacementService(
           repository: repository,
@@ -139,6 +142,12 @@ final class LocalComposition {
 
   Future<void> close() async {
     identity.lock();
-    await repository.close();
+    try {
+      await guideProgress.flush();
+    } catch (_) {
+      // Preferences must never prevent business resource cleanup.
+    } finally {
+      await repository.close();
+    }
   }
 }

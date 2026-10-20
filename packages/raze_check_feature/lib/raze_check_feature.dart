@@ -38,7 +38,8 @@ export 'src/recovery/authority_history_screen.dart';
 export 'src/recovery/recovery_workspace.dart';
 
 export 'src/host/check_services.dart';
-export 'src/host/check_feature_host.dart';
+export 'src/host/check_feature_host.dart' show CheckFeatureHost;
+export 'src/guides/guide_models.dart' show GuidePresentationConfig;
 export 'src/theme/check_theme.dart';
 export 'src/dashboard/staff_home_screen.dart';
 export 'src/dashboard/manager_home_screen.dart';

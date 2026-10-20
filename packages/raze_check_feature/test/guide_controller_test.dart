@@ -7,6 +7,88 @@ import 'package:raze_check_feature/src/guides/guide_models.dart';
 import 'support/guide_fixture.dart';
 
 void main() {
+  for (final interruption in [
+    'none',
+    'unrelated',
+    'authority',
+    'next',
+    'skip',
+    'start',
+    'pause',
+    'lock',
+  ]) {
+    test(
+      'controlled origin return preserves only its captured authority: $interruption',
+      () async {
+        final c = GuideController(catalog: GuideCatalog());
+        await c.initialize();
+        final authority = Object(),
+            origin = Object(),
+            returning = Completer<void>();
+        var calls = 0;
+        await c.bind(
+          GuideContext(
+            token: Object(),
+            authorityToken: authority,
+            audience: GuideAudience(
+              variants: const {'companies': 'personal', 'welcome': 'public'},
+            ),
+            validateCurrent: () async {},
+            originReturn: GuideOriginReturn(
+              token: origin,
+              returnToOrigin: () => returning.future,
+            ),
+            navigation: {
+              GuideDestination.createCompany: () async {
+                calls++;
+                await c.bind(
+                  testGuideContext(
+                    authorityToken: authority,
+                    destination: GuideDestination.createCompany,
+                    variants: const {'companies': 'personal'},
+                  ),
+                );
+              },
+            },
+          ),
+        );
+        c.start('companies');
+        final request = c.showDestination();
+        await Future<void>.delayed(Duration.zero);
+        await c.bind(
+          testGuideContext(
+            token: interruption == 'unrelated' ? Object() : origin,
+            authorityToken: interruption == 'authority' ? Object() : authority,
+            variants: const {'companies': 'personal', 'welcome': 'public'},
+          ),
+        );
+        switch (interruption) {
+          case 'next':
+            c.next();
+          case 'skip':
+            c.skip();
+          case 'start':
+            c.start('welcome');
+          case 'pause':
+            c.setPaused(true);
+            c.setPaused(false);
+          case 'lock':
+            c.invalidateAuthority(authority);
+        }
+        returning.complete();
+        await request;
+        expect(calls, interruption == 'none' ? 1 : 0);
+        if (interruption == 'none') {
+          expect(c.active?.definition.id, 'companies');
+          expect(c.active?.stepIndex, 0);
+        } else if (interruption != 'start') {
+          expect(c.active, isNull);
+        }
+        await c.flush();
+        c.dispose();
+      },
+    );
+  }
   for (final action in ['skip', 'start', 'next', 'back', 'pause']) {
     test('Show me validation is canceled by $action', () async {
       var validations = 0, calls = 0;

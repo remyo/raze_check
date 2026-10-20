@@ -3,6 +3,15 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:raze_check_core/raze_check_core.dart';
 import '../../raze_check_feature.dart';
+import '../host/check_feature_host.dart';
+import '../guides/guide_scope.dart';
+import '../guides/guide_controller.dart';
+import '../guides/guide_models.dart';
+import '../guides/guide_scene.dart';
+import '../guides/guide_layer.dart';
+import '../guides/welcome_screen.dart';
+import '../guides/guide_library_screen.dart';
+import '../settings/settings_screen.dart';
 
 class CheckProfileGate extends StatefulWidget {
   const CheckProfileGate({
@@ -46,6 +55,137 @@ class CheckProfileGateState extends State<CheckProfileGate>
   LocalProfile? _selected;
   Timer? _expiry;
   bool _obscured = false;
+  final _lifetime = FeatureRouteLifetime();
+  GuideController? _guides;
+  GuideContext? _guideContext;
+  bool _welcomeFinished = false;
+  BuildContext? _routingContext;
+
+  /// Context beneath the gate's live session boundary for feature-owned routes.
+  BuildContext? get routingContext =>
+      mounted && _lifetime.alive && (_routingContext?.mounted ?? false)
+      ? _routingContext
+      : null;
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _guides = GuideScope.maybeOf(context);
+    _guideContext ??= _makeGuideContext();
+  }
+
+  GuideContext _makeGuideContext() {
+    final generation = _lifetime.generation, session = _session;
+    return GuideContext(
+      token: Object(),
+      authorityToken: generation,
+      audience: GuideAudience(variants: const {'welcome': 'public'}),
+      validateCurrent: () async {
+        if (!mounted ||
+            !_lifetime.accepts(generation) ||
+            !identical(_session, session)) {
+          throw StateError('Expired guide session');
+        }
+        if (session != null) widget.identity.requireActor(session);
+      },
+    );
+  }
+
+  void _invalidateGuides() {
+    final oldAuthority = _guideContext?.authorityToken;
+    final activeAuthority = _guides?.currentContext?.authorityToken;
+    _lifetime.invalidate();
+    if (activeAuthority != null) _guides?.invalidateAuthority(activeAuthority);
+    if (oldAuthority != null) _guides?.invalidateAuthority(oldAuthority);
+    _guideContext = null;
+  }
+
+  Future<void> _openGuidePage(
+    BuildContext source,
+    WidgetBuilder builder,
+    String name,
+  ) async {
+    final origin =
+        _guides?.currentContext ??
+        GuideScene.maybeContextOf(source) ??
+        _guideContext;
+    if (origin == null) return;
+    final generation = _lifetime.generation;
+    try {
+      await origin.validateCurrent();
+    } catch (_) {
+      return;
+    }
+    if (!mounted || !source.mounted || !_lifetime.accepts(generation)) return;
+    ModalRoute<dynamic>? openedRoute;
+    NavigatorState? openedNavigator;
+    final originReturn =
+        origin.originReturn ??
+        GuideOriginReturn(
+          token: origin.token,
+          returnToOrigin: () async {
+            await origin.validateCurrent();
+            final route = openedRoute, navigator = openedNavigator;
+            if (!mounted ||
+                !_lifetime.accepts(generation) ||
+                route == null ||
+                !route.isActive ||
+                navigator == null ||
+                !navigator.mounted) {
+              throw StateError('Expired guide origin');
+            }
+            navigator.popUntil((candidate) => identical(candidate, route));
+            navigator.pop();
+            await route.completed;
+            await WidgetsBinding.instance.endOfFrame;
+          },
+        );
+    final scene = GuideContext(
+      token: Object(),
+      authorityToken: origin.authorityToken,
+      audience: origin.audience,
+      validateCurrent: origin.validateCurrent,
+      navigation: origin.navigation,
+      originReturn: originReturn,
+    );
+    final page = Builder(
+      builder: (pageContext) {
+        openedRoute = ModalRoute.of(pageContext);
+        openedNavigator = Navigator.of(pageContext);
+        return GuideScene(
+          context: scene,
+          child: Builder(builder: builder),
+        );
+      },
+    );
+    final host = widget.host ?? CheckFeatureHost(onExit: () {});
+    await host.open(source, page, name, guideLayer: false);
+  }
+
+  void _settings(BuildContext source) {
+    _openGuidePage(
+      source,
+      (settingsContext) => SettingsScreen(
+        onOpenGuides: () {
+          _openGuidePage(
+            settingsContext,
+            (_) => GuideLibraryScreen(brandBuilder: widget.host?.iconBuilder),
+            'help-guides',
+          );
+        },
+      ),
+      'settings',
+    );
+  }
+
+  void _exit() {
+    _invalidateGuides();
+    _lifetime.end();
+    _expiry?.cancel();
+    widget.identity.lock();
+    widget.host!.onExit();
+    if (mounted) setState(() {});
+  }
+
   final _workspace = GlobalKey<CompanyWorkspaceState>();
   @override
   void initState() {
@@ -56,6 +196,8 @@ class CheckProfileGateState extends State<CheckProfileGate>
 
   @override
   void dispose() {
+    _invalidateGuides();
+    _lifetime.end();
     _expiry?.cancel();
     widget.identity.lock();
     WidgetsBinding.instance.removeObserver(this);
@@ -63,6 +205,7 @@ class CheckProfileGateState extends State<CheckProfileGate>
   }
 
   void _lock() {
+    _invalidateGuides();
     Navigator.of(context).popUntil((route) => route.isFirst);
     widget.identity.lock();
     _expiry?.cancel();
@@ -76,6 +219,7 @@ class CheckProfileGateState extends State<CheckProfileGate>
   }
 
   void _opened(SessionHandle session) {
+    _invalidateGuides();
     try {
       _canCreateCompany =
           widget.identity.requireActor(session).restrictedCompanyId == null;
@@ -122,14 +266,52 @@ class CheckProfileGateState extends State<CheckProfileGate>
   }
 
   @override
-  Widget build(BuildContext context) => Visibility(
-    visible: !_obscured,
-    maintainState: true,
-    replacement: const Scaffold(
-      body: Center(child: Text('Raze Check locked view')),
-    ),
-    child: _content(context),
-  );
+  Widget build(BuildContext context) {
+    _guideContext ??= _makeGuideContext();
+    return FeatureRouteScope(
+      lifetime: _lifetime,
+      generation: _lifetime.generation,
+      child: Visibility(
+        visible: !_obscured && _lifetime.alive,
+        maintainState: true,
+        replacement: const Scaffold(
+          body: Center(child: Text('Raze Check locked view')),
+        ),
+        child: GuideScene(
+          context: _guideContext!,
+          child: Builder(
+            builder: (sceneContext) {
+              _routingContext = sceneContext;
+              final guides = _guides;
+              if (guides == null) return _content(sceneContext);
+              return GuideStateBuilder(
+                controller: guides,
+                builder: (_) {
+                  final welcome =
+                      widget.host?.guides.automaticWelcome == true &&
+                      !_welcomeFinished &&
+                      !guides.progress.welcomeDismissed &&
+                      _session == null;
+                  if (welcome && !guides.ready) {
+                    return const Scaffold(
+                      body: Center(child: CircularProgressIndicator()),
+                    );
+                  }
+                  if (welcome) {
+                    return WelcomeScreen(
+                      brandBuilder: widget.host?.iconBuilder,
+                      onFinished: () => setState(() => _welcomeFinished = true),
+                    );
+                  }
+                  return GuideLayer(child: _content(sceneContext));
+                },
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _content(BuildContext context) {
     if (_session != null) {
@@ -171,10 +353,15 @@ class CheckProfileGateState extends State<CheckProfileGate>
               ? null
               : IconButton(
                   tooltip: 'Exit Raze Check',
-                  onPressed: widget.host!.onExit,
+                  onPressed: _exit,
                   icon: const Icon(Icons.close),
                 ),
           actions: [
+            IconButton(
+              tooltip: 'Settings',
+              onPressed: () => _settings(context),
+              icon: const Icon(Icons.settings_outlined),
+            ),
             if (widget.onRecovery != null)
               compactActions
                   ? IconButton(
@@ -202,6 +389,7 @@ class CheckProfileGateState extends State<CheckProfileGate>
                 key: _workspace,
                 host: widget.host,
                 initialCompanyId: widget.initialCompanyId,
+                onSettings: () => _settings(context),
                 onRecovery: widget.onRecovery == null ? null : recovery,
                 companies: widget.companies!,
                 enrollment: widget.enrollment,
@@ -246,7 +434,16 @@ class CheckProfileGateState extends State<CheckProfileGate>
       );
     }
     return Scaffold(
-      appBar: AppBar(title: const Text('Raze Check')),
+      appBar: AppBar(
+        title: const Text('Raze Check'),
+        actions: [
+          IconButton(
+            tooltip: 'Settings',
+            onPressed: () => _settings(context),
+            icon: const Icon(Icons.settings_outlined),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(

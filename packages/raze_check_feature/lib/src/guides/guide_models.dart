@@ -56,6 +56,7 @@ final class GuideContext {
     required this.audience,
     required this.validateCurrent,
     this.destination,
+    this.originReturn,
     Map<GuideDestination, Future<void> Function()> navigation = const {},
   }) : navigation = Map.unmodifiable(navigation);
   final Object token, authorityToken;
@@ -63,6 +64,15 @@ final class GuideContext {
   final Future<void> Function() validateCurrent;
   final GuideDestination? destination;
   final Map<GuideDestination, Future<void> Function()> navigation;
+  final GuideOriginReturn? originReturn;
+}
+
+/// Internal Settings/library route return, never a grant of authority.
+/// Only the captured origin scene may bind while this explicit return runs.
+final class GuideOriginReturn {
+  const GuideOriginReturn({required this.token, required this.returnToOrigin});
+  final Object token;
+  final Future<void> Function() returnToOrigin;
 }
 
 final class GuideRun {
