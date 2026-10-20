@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:raze_check_core/raze_check_core.dart';
 import 'package:raze_check_feature/raze_check_feature.dart';
 import 'package:raze_check_feature/src/guides/guide_scope.dart';
 import 'package:raze_check_feature/src/guides/welcome_screen.dart';
@@ -80,6 +81,69 @@ Future<void> drainGuideFuture(WidgetTester tester, Future<void> future) async {
 }
 
 void main() {
+  for (final failed in [false, true]) {
+    testWidgets(
+      'obsolete welcome step explains restart accessibly with write failure=$failed',
+      (tester) async {
+        tester.view.physicalSize = const Size(320, 640);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final store = MemoryGuideProgressStore(
+          failWrite: failed,
+          snapshot: GuideProgressSnapshot(
+            entries: [
+              const GuideProgress(
+                guideId: 'welcome',
+                variantId: 'public',
+                contentRevision: 1,
+                stepId: 'removed-welcome-step',
+              ),
+            ],
+          ),
+        );
+        await mountGuides(tester, store: store, textScale: 2);
+        final semantics = tester.ensureSemantics();
+        try {
+          expect(find.text('Step 1 of 5'), findsOneWidget);
+          final notice = find.textContaining('This guide changed.');
+          expect(notice, findsOneWidget);
+          await tester.ensureVisible(notice);
+          await tester.pumpAndSettle();
+          expect(
+            find.bySemanticsLabel(RegExp('This guide changed')),
+            findsWidgets,
+          );
+          expect(
+            find.textContaining('could not be saved'),
+            failed ? findsOneWidget : findsNothing,
+          );
+          if (failed) {
+            expect(
+              find.bySemanticsLabel(RegExp('could not be saved')),
+              findsWidgets,
+            );
+          }
+          await tester.ensureVisible(find.text('Next'));
+          await tester.tap(find.text('Next'));
+          await tester.pumpAndSettle();
+          expect(find.text('Step 2 of 5'), findsOneWidget);
+          expect(notice, findsOneWidget);
+          expect(
+            find.textContaining('could not be saved'),
+            failed ? findsOneWidget : findsNothing,
+          );
+          await tester.ensureVisible(find.text('Skip'));
+          await tester.tap(find.text('Skip'));
+          await settleFeature(tester);
+          expect(find.text('Create local profile'), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        } finally {
+          semantics.dispose();
+        }
+      },
+    );
+  }
   testWidgets(
     'opted-in session-only welcome supports narrow large text scrolling',
     (tester) async {

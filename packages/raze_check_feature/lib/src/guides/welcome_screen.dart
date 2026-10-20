@@ -101,10 +101,13 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                           ),
                           const SizedBox(height: 16),
                           Text(run.definition.steps[run.stepIndex].body),
-                          if (c!.persistenceFailed)
+                          if (c!.presentationNotice != null)
                             Padding(
                               padding: const EdgeInsets.only(top: 16),
-                              child: Text(c.notice!),
+                              child: Semantics(
+                                liveRegion: true,
+                                child: Text(c.presentationNotice!),
+                              ),
                             ),
                           const SizedBox(height: 24),
                           FocusTraversalOrder(
