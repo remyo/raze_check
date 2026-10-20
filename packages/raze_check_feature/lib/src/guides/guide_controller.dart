@@ -54,12 +54,25 @@ final class GuideController extends ChangeNotifier {
     }
   }
 
-  /// Internal synchronous panel handoff. The matching bind (or cancellation)
-  /// completes this request, rather than the setState callback returning early.
-  Future<void> navigateToScene(VoidCallback navigate) async {
-    final intent = _pending;
-    navigate();
-    if (intent != null) await intent.completion.future;
+  /// Internal panel/route handoff. Capture the original request before any
+  /// extra domain validation; canceled callbacks cannot adopt a newer intent.
+  /// A matching bind (or cancellation) completes synchronous panel navigation.
+  Future<void> navigateToScene(
+    FutureOr<void> Function() navigate, {
+    Future<void> Function()? validateCurrent,
+  }) async {
+    final intent = _pending, source = _context;
+    final requestGeneration = _requestGeneration;
+    if (intent == null || source == null || paused) return;
+    await validateCurrent?.call();
+    if (!identical(_pending, intent) ||
+        requestGeneration != _requestGeneration ||
+        !identical(_context, source) ||
+        paused) {
+      return;
+    }
+    await navigate();
+    await intent.completion.future;
   }
 
   int _generation = 0;

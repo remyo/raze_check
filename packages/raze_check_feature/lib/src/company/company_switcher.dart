@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../guides/company_guide_bindings.dart';
 import '../guides/guide_models.dart';
@@ -236,15 +237,18 @@ class CompanyWorkspaceState extends State<CompanyWorkspace> {
       check();
     }
 
-    Future<void> navigate(
-      GuideDestination destination,
-      VoidCallback open,
-    ) async {
-      await validate();
-      // Settings first restores this exact source. Existing live drafts remain
-      // explanatory: guide navigation never chooses a discard decision.
-      if (_hasGuideDraft || _loading || _busy) return;
-      await _guides?.navigateToScene(open);
+    Future<void> navigate(FutureOr<void> Function() open) async {
+      // Capture the controller request before the second awaited validation.
+      // Settings first restores this exact source; drafts remain explanatory.
+      await _guides?.navigateToScene(
+        open,
+        validateCurrent: () async {
+          await validate();
+          if (_hasGuideDraft || _loading || _busy) {
+            throw StateError('Guide navigation cannot leave this workflow');
+          }
+        },
+      );
     }
 
     return GuideContext(
@@ -266,39 +270,29 @@ class CompanyWorkspaceState extends State<CompanyWorkspace> {
       navigation: !_loading && !_busy && !_hasGuideDraft
           ? {
               if (widget.canCreateCompany)
-                GuideDestination.createCompany: () => navigate(
-                  GuideDestination.createCompany,
-                  () => _newDraft(setup: true),
-                ),
+                GuideDestination.createCompany: () =>
+                    navigate(() => _newDraft(setup: true)),
               if (widget.enrollment != null &&
                   widget.messages != null &&
                   (_canInvite || widget.canCreateCompany))
-                GuideDestination.joinCompany: () =>
-                    navigate(GuideDestination.joinCompany, _openEnrollment),
+                GuideDestination.joinCompany: () => navigate(_openEnrollment),
               if (_membership?.active == true &&
                   (_owner || widget.canCreateCompany) &&
                   widget.capture != null &&
                   company != null)
-                GuideDestination.capture: () =>
-                    navigate(GuideDestination.capture, _capture),
+                GuideDestination.capture: () => navigate(_capture),
               if ((_canReview || widget.canCreateCompany) &&
                   widget.attendance != null &&
                   company != null)
-                GuideDestination.attendance: () =>
-                    navigate(GuideDestination.attendance, _attendance),
+                GuideDestination.attendance: () => navigate(_attendance),
               if (_canManage && _guideDestination != GuideDestination.team)
-                GuideDestination.team: () => navigate(
-                  GuideDestination.team,
-                  () => setState(() => _tab = 2),
-                ),
+                GuideDestination.team: () =>
+                    navigate(() => setState(() => _tab = 2)),
               if ((_canExport || widget.canCreateCompany) &&
                   company != null &&
                   widget.services != null &&
                   widget.host != null)
-                GuideDestination.reports: () async {
-                  await validate();
-                  if (!_hasGuideDraft && !_busy) await _report();
-                },
+                GuideDestination.reports: () => navigate(_report),
             }
           : const {},
     );

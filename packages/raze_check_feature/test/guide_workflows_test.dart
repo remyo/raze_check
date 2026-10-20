@@ -441,6 +441,185 @@ void main() {
   );
 
   testWidgets(
+    'report validation cannot push after cancellation or steal a newer request',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1000, 1400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final pair = (await tester.runAsync(TwoDeviceFixture.create))!;
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.runAsync(pair.dispose);
+      });
+      final companies = ObservedCompanies(pair.manager.companies);
+      final guides = await mountWorkflow(
+        tester,
+        pair.manager,
+        companies: companies,
+        messages: CountedMessages(),
+        attendance: ObservedAttendance(
+          featureServices(pair.manager).attendance,
+        ),
+      );
+      final member = (await tester.runAsync(
+        () => pair.manager.companies.membership(
+          pair.manager.session,
+          pair.companyId,
+        ),
+      ))!;
+      for (final cancel in [
+        'skip',
+        'next',
+        'back',
+        'start',
+        'pause',
+        'supersede',
+      ]) {
+        final source = guides.currentContext!;
+        final heldOld = Completer<Membership?>();
+        companies.delayed = heldOld;
+        companies.readsBeforeDelay = 1;
+        guides.start('reports', restart: true);
+        final oldNavigation = guides.showDestination();
+        await settleGuide(tester, () => companies.delayed == null);
+        Completer<Membership?>? heldNew;
+        Future<void>? newNavigation;
+        switch (cancel) {
+          case 'skip':
+            guides.skip();
+          case 'next':
+            guides.next();
+          case 'back':
+            guides.back();
+          case 'start':
+            guides.start('team');
+          case 'pause':
+            guides.setPaused(true);
+            guides.setPaused(false);
+          case 'supersede':
+            heldNew = Completer<Membership?>();
+            companies.delayed = heldNew;
+            companies.readsBeforeDelay = 1;
+            guides.start('team');
+            newNavigation = guides.showDestination();
+            await settleGuide(tester, () => companies.delayed == null);
+        }
+        heldOld.complete(member);
+        await tester.pumpAndSettle();
+        expect(
+          find.byType(AttendanceReportScreen),
+          findsNothing,
+          reason: cancel,
+        );
+        expect(guides.currentContext!.token, same(source.token));
+        if (heldNew != null) {
+          heldNew.complete(member);
+          await settleGuide(
+            tester,
+            () =>
+                guides.currentContext?.destination == GuideDestination.team &&
+                guides.active?.definition.id == 'team',
+          );
+          await newNavigation;
+        }
+        await oldNavigation;
+      }
+      expect(companies.commandCalls, 0);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 1));
+    },
+  );
+
+  for (final cancel in [
+    'skip',
+    'next',
+    'back',
+    'start',
+    'pause',
+    'supersede',
+  ]) {
+    testWidgets(
+      'second navigation validation retains original request: $cancel',
+      (tester) async {
+        final base = Companies(),
+            guides = GuideController(catalog: GuideCatalog());
+        final companies = ObservedCompanies(base);
+        await guides.initialize();
+        await tester.pumpWidget(
+          MaterialApp(
+            home: GuideScope(
+              controller: guides,
+              child: Scaffold(
+                body: CompanyWorkspace(
+                  companies: companies,
+                  session: base.session,
+                  ids: SecureIds(),
+                  onAuthorizedActivity: () {},
+                  onSessionChanged: (_) {},
+                  onLocked: () {},
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final source = guides.currentContext!;
+        final member = await base.membership(base.session, 'a');
+        final heldOld = Completer<Membership?>();
+        companies.delayed = heldOld;
+        companies.readsBeforeDelay = 1;
+        guides.start('companies');
+        final oldNavigation = guides.showDestination();
+        await tester.pump();
+        expect(
+          companies.delayed,
+          isNull,
+          reason: 'The second validation is awaiting the old read',
+        );
+        Completer<Membership?>? heldNew;
+        Future<void>? newNavigation;
+        switch (cancel) {
+          case 'skip':
+            guides.skip();
+          case 'next':
+            guides.next();
+          case 'back':
+            guides.back();
+          case 'start':
+            guides.start('team');
+          case 'pause':
+            guides.setPaused(true);
+            guides.setPaused(false);
+          case 'supersede':
+            heldNew = Completer<Membership?>();
+            companies.delayed = heldNew;
+            companies.readsBeforeDelay = 1;
+            guides.start('team');
+            newNavigation = guides.showDestination();
+            await tester.pump();
+            expect(companies.delayed, isNull);
+        }
+        heldOld.complete(member);
+        await tester.pumpAndSettle();
+        expect(
+          find.byType(CompanySetupScreen),
+          findsNothing,
+          reason: 'An obsolete request must never open its form',
+        );
+        expect(guides.currentContext!.token, same(source.token));
+        if (heldNew != null) {
+          heldNew.complete(member);
+          await tester.pumpAndSettle();
+          await newNavigation;
+          expect(guides.active?.definition.id, 'team');
+          expect(guides.currentContext!.destination, GuideDestination.team);
+        }
+        await oldNavigation;
+        expect(companies.commandCalls, 0);
+      },
+    );
+  }
+
+  testWidgets(
     'late company validation cannot open destination after ordinary company switch',
     (tester) async {
       final base = Companies();
@@ -670,12 +849,17 @@ class ObservedCompanies implements CompanyService {
   final CompanyService delegate;
   int commandCalls = 0;
   Completer<Membership?>? delayed;
+  int readsBeforeDelay = 0;
   Membership? overrideMember;
   @override
   Future<List<Company>> listCompanies(SessionHandle session) =>
       delegate.listCompanies(session);
   @override
   Future<Membership?> membership(SessionHandle session, String company) {
+    if (delayed != null && readsBeforeDelay > 0) {
+      readsBeforeDelay--;
+      return delegate.membership(session, company);
+    }
     final hold = delayed;
     delayed = null;
     return hold?.future ??
