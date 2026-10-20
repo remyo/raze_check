@@ -1,6 +1,6 @@
 # Foundation acceptance evidence
 
-Task13 measured capacity and current Android acceptance are complete under the recorded reconciliation scope. Current physical iPhone signing/testing and hands-on optical/picker/share checks are explicitly deferred by the user; runtime floors remain unverified. Final Task13 delta review is pending. The source chain starts at approved Task12 baseline `186ab549e3d6a469a61eebf548bbe6f010755b83`; this is not an unconditional release or current two-platform parity claim.
+Task13 measured capacity and current Android acceptance are complete under the recorded reconciliation scope. Current physical iPhone signing/testing and hands-on optical/picker/share checks are explicitly deferred by the user; runtime floors remain unverified. Final Task13 delta review approved `32ff89c6395e4fa238895ec310ff79aa7749ac90` with no Critical/Important findings and one nonblocking Minor warning-output finding; see the [final review record](final-review.md). The source chain starts at approved Task12 baseline `186ab549e3d6a469a61eebf548bbe6f010755b83`; this is not an unconditional release or current two-platform parity claim.
 
 ## Reproducible gates
 
@@ -66,7 +66,7 @@ Current Android native coverage combines the unchanged six core behavior passes 
 The current normal iOS simulator build passed (Xcode34.6s), preserved under ignored `build/artifacts/task13-current/ios-simulator/Runner.app`; file-manifest SHA256`44563992612305113a050ffd722f046a15c063d7ba34bbb48d15f9105d8c1abc`. It is a simulator artifact, not an iPhone preview. The user explicitly deferred current physical iPhone signing/testing after the selected-team account/profile gap. Earlier actual iPhone results retain their original source/signer provenance and do not close current physical parity.
 
 
-Final whole-workspace verification after all harness changes passed: `tool/verify.sh` exited0 with210files unchanged, clean analysis,43core +170local +44feature +9host =266tests and3explicit opt-in capacity skips. Package elapsed times were1s/7m09s/2m12s/27s. The separate actual CopyA and both diagnostic capacity runs passed as recorded above; skipped opt-in tests are not counted as those passes. Final independent Task13 delta review remains pending.
+Final whole-workspace verification after all harness changes passed: `tool/verify.sh` exited0 with210files unchanged, clean analysis,43core +170local +44feature +9host =266tests and3explicit opt-in capacity skips. Package elapsed times were1s/7m09s/2m12s/27s. The separate actual CopyA and both diagnostic capacity runs passed as recorded above; skipped opt-in tests are not counted as those passes. Final independent Task13 delta review approved `32ff89c6395e4fa238895ec310ff79aa7749ac90`; the recorded platform/manual limitations remain open.
 
 ## Source and artifact correspondence
 
