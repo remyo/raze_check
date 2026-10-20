@@ -2,7 +2,7 @@
 
 Date: 2026-10-20
 
-Status: Guided approach approved in chat; this written design awaits user review before implementation planning.
+Status: Written design approved in chat on 2026-10-20; implementation planning authorized. The user also authorized useful images/icons and requested screenshots.
 
 Starting point: `dev` at `9650a111f55d8fd53b09387ff2e4a98de27481bc`.
 
@@ -186,6 +186,8 @@ Missing or offscreen anchors produce a readable instruction panel with Continue/
 
 Match the approved Raze Check typography, colors, branding, and light/dark themes. Use concise plain English and the existing UI labels. Support narrow phones, tablets, landscape, large text, screen readers, and reduced-motion preferences. All steps must be scrollable when needed. Provide semantic headings, step counts, labeled controls, sensible focus order, and a non-gesture way to leave a guide. Prefer a bottom sheet or full-page explanation when a floating bubble cannot fit safely.
 
+Reuse the approved mascot and existing Material Icons for the initial guide artwork. The user permits generating additional images/icons when needed; the current guide design needs no new raster assets or launcher-icon changes. Capture and inspect the implemented screens with synthetic data, recording viewport, theme, text scale, and whether the image is a Flutter widget render or physical-device screenshot. Keep raw device captures private when they include OS chrome.
+
 ## Acceptance checks for the implementation plan
 
 1. First-open introduction appears with five steps, resumes after interruption, and stays dismissed after Skip or Get started.
@@ -201,4 +203,4 @@ Match the approved Raze Check typography, colors, branding, and light/dark theme
 
 ## Next approval boundary
 
-The user has approved the guided approach. Review and approval of this written design permits preparation of the implementation plan. Product code and new tutorial dependencies have not been added at this stage.
+The user has approved this written design. Prepare the implementation plan for review, preserving the previously selected subagent-driven execution method. Product code and new tutorial dependencies have not been added at this stage.
