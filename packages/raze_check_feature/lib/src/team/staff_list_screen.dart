@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:raze_check_core/raze_check_core.dart';
+import '../guides/guide_target.dart';
+import '../guides/guide_invitation.dart';
 
 class StaffListScreen extends StatelessWidget {
   const StaffListScreen({
@@ -18,7 +20,11 @@ class StaffListScreen extends StatelessWidget {
     padding: const EdgeInsets.all(24),
     children: [
       Text('Staff', style: Theme.of(context).textTheme.headlineSmall),
-      FilledButton(onPressed: onAdd, child: const Text('Add staff')),
+      const GuideInvitation(guideId: 'team'),
+      GuideTarget(
+        id: 'team-open',
+        child: FilledButton(onPressed: onAdd, child: const Text('Add staff')),
+      ),
       if (staff.isEmpty)
         const Padding(
           padding: EdgeInsets.all(24),

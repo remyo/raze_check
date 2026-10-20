@@ -1,4 +1,11 @@
 import 'package:flutter/material.dart';
+import '../guides/company_guide_bindings.dart';
+import '../guides/guide_models.dart';
+import '../guides/guide_scene.dart';
+import '../guides/guide_scope.dart';
+import '../guides/guide_controller.dart';
+import '../guides/guide_target.dart';
+import '../guides/guide_invitation.dart';
 import 'dart:typed_data';
 import 'package:raze_check_core/raze_check_core.dart';
 import '../profile/profile_commands.dart';
@@ -28,52 +35,55 @@ class CompanySwitcher extends StatelessWidget {
   final ValueChanged<Company> onSelected;
   final String? subtitle;
   @override
-  Widget build(BuildContext context) => PopupMenuButton<Company>(
-    key: const Key('company-switcher'),
-    tooltip: 'Switch company',
-    onSelected: onSelected,
-    itemBuilder: (_) => [
-      for (final company in companies)
-        PopupMenuItem(value: company, child: Text(company.name)),
-    ],
-    child: ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 48),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    selected?.name ?? 'Select company',
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 3),
+  Widget build(BuildContext context) => GuideTarget(
+    id: 'companies-switch',
+    child: PopupMenuButton<Company>(
+      key: const Key('company-switcher'),
+      tooltip: 'Switch company',
+      onSelected: onSelected,
+      itemBuilder: (_) => [
+        for (final company in companies)
+          PopupMenuItem(value: company, child: Text(company.name)),
+      ],
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 48),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Text(
-                      subtitle!,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      selected?.name ?? 'Select company',
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        subtitle!,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Icon(
-              Icons.keyboard_arrow_down,
-              size: 20,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ],
+              const SizedBox(width: 8),
+              Icon(
+                Icons.keyboard_arrow_down,
+                size: 20,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ],
+          ),
         ),
       ),
     ),
@@ -125,6 +135,197 @@ class CompanyWorkspace extends StatefulWidget {
 }
 
 class CompanyWorkspaceState extends State<CompanyWorkspace> {
+  GuideController? _guides;
+  GuideContext? _gateGuide, _companyGuide;
+  Object _guideAuthority = Object();
+  Object? _guideIdentity;
+  BuildContext? _sceneContext;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _guides = GuideScope.maybeOf(context);
+    final gate = GuideScene.maybeContextOf(context);
+    if (!identical(gate, _gateGuide)) {
+      _gateGuide = gate;
+      _invalidateGuideAuthority();
+    }
+  }
+
+  void _invalidateGuideAuthority() {
+    _guides?.invalidateAuthority(_guideAuthority);
+    _guideAuthority = Object();
+    _companyGuide = null;
+  }
+
+  @override
+  void dispose() {
+    _guides?.invalidateAuthority(_guideAuthority);
+    super.dispose();
+  }
+
+  Object get _panelIdentity => (
+    _loading,
+    _tab,
+    _setup,
+    _draft,
+    _operator,
+    _editing?.employeeId,
+    _enrolling,
+    _capturing,
+    _reviewing,
+    _manualEntry,
+    (_setup || _draft || _operator) ? _operation : null,
+  );
+
+  GuideDestination? get _guideDestination => _setup
+      ? GuideDestination.createCompany
+      : _enrolling
+      ? GuideDestination.joinCompany
+      : _capturing
+      ? GuideDestination.capture
+      : _reviewing
+      ? GuideDestination.attendance
+      : (_tab == 2 && _managerMode) || (_draft || _operator)
+      ? GuideDestination.team
+      : null;
+
+  bool get _hasGuideDraft =>
+      _setup || _draft || _operator || _enrolling || _capturing || _reviewing;
+
+  GuideContext _makeCompanyGuide() {
+    final authority = _guideAuthority,
+        session = widget.session,
+        company = _selected,
+        member = _membership,
+        gate = _gateGuide,
+        identity = _panelIdentity,
+        token = Object();
+    void check() {
+      if (!mounted ||
+          !identical(authority, _guideAuthority) ||
+          !identical(session, widget.session) ||
+          company?.id != _selected?.id ||
+          identity != _panelIdentity ||
+          !identical(_companyGuide?.token, token)) {
+        throw StateError('Expired company guide context');
+      }
+    }
+
+    Future<void> validate() async {
+      check();
+      await gate?.validateCurrent();
+      check();
+      if (company != null) {
+        final current = await widget.companies.membership(session, company.id);
+        check();
+        if (current?.id != member?.id ||
+            current?.revision != member?.revision ||
+            current?.active != member?.active ||
+            current?.owner != member?.owner ||
+            current?.capabilities.length != member?.capabilities.length ||
+            !(current?.capabilities.every(
+                  (c) => member!.capabilities.contains(c),
+                ) ??
+                member == null)) {
+          _invalidateGuideAuthority();
+          throw StateError('Company guide permissions changed');
+        }
+      }
+      await gate?.validateCurrent();
+      check();
+    }
+
+    Future<void> navigate(
+      GuideDestination destination,
+      VoidCallback open,
+    ) async {
+      await validate();
+      // Settings first restores this exact source. Existing live drafts remain
+      // explanatory: guide navigation never chooses a discard decision.
+      if (_hasGuideDraft || _loading || _busy) return;
+      await _guides?.navigateToScene(open);
+    }
+
+    return GuideContext(
+      token: token,
+      authorityToken: authority,
+      audience: companyGuideAudience(
+        unlocked: true,
+        canCreateCompany: widget.canCreateCompany,
+        owner: _owner,
+        operatorSession: !widget.canCreateCompany,
+        activeMembership: _membership?.active == true,
+        canInvite: _canInvite,
+        canManageStaff: _canManage,
+        canReview: _canReview,
+        canExport: _canExport,
+      ),
+      destination: _guideDestination,
+      validateCurrent: validate,
+      navigation: !_loading && !_busy && !_hasGuideDraft
+          ? {
+              if (widget.canCreateCompany)
+                GuideDestination.createCompany: () => navigate(
+                  GuideDestination.createCompany,
+                  () => _newDraft(setup: true),
+                ),
+              if (widget.enrollment != null &&
+                  widget.messages != null &&
+                  (_canInvite || widget.canCreateCompany))
+                GuideDestination.joinCompany: () =>
+                    navigate(GuideDestination.joinCompany, _openEnrollment),
+              if (_membership?.active == true &&
+                  (_owner || widget.canCreateCompany) &&
+                  widget.capture != null &&
+                  company != null)
+                GuideDestination.capture: () =>
+                    navigate(GuideDestination.capture, _capture),
+              if ((_canReview || widget.canCreateCompany) &&
+                  widget.attendance != null &&
+                  company != null)
+                GuideDestination.attendance: () =>
+                    navigate(GuideDestination.attendance, _attendance),
+              if (_canManage && _guideDestination != GuideDestination.team)
+                GuideDestination.team: () => navigate(
+                  GuideDestination.team,
+                  () => setState(() => _tab = 2),
+                ),
+              if ((_canExport || widget.canCreateCompany) &&
+                  company != null &&
+                  widget.services != null &&
+                  widget.host != null)
+                GuideDestination.reports: () async {
+                  await validate();
+                  if (!_hasGuideDraft && !_busy) await _report();
+                },
+            }
+          : const {},
+    );
+  }
+
+  Widget _withCompanyGuide(Widget child) {
+    final identity = _panelIdentity;
+    if (_companyGuide == null || identity != _guideIdentity) {
+      _guideIdentity = identity;
+      _companyGuide = _makeCompanyGuide();
+    }
+    final body = Builder(
+      builder: (context) {
+        _sceneContext = context;
+        return child;
+      },
+    );
+    // Stateful workflow panels own their own changing selection scenes.
+    return !_loading && (_capturing || _reviewing || _enrolling)
+        ? GuideSceneBinding(
+            guideContext: _companyGuide!,
+            registry: GuideScope.registryOf(context),
+            child: body,
+          )
+        : GuideScene(context: _companyGuide!, child: body);
+  }
+
   List<Company> _companies = [];
   Company? _selected;
   Membership? _membership;
@@ -171,12 +372,14 @@ class CompanyWorkspaceState extends State<CompanyWorkspace> {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.session, widget.session)) {
       _generation++;
+      _invalidateGuideAuthority();
       _enrolling = false;
       _capturing = false;
       _reviewing = false;
       _manualEntry = false;
       _tab = 0;
       _selected = null;
+      _membership = null;
       _draft = false;
       _setup = false;
       _reload();
@@ -225,6 +428,7 @@ class CompanyWorkspaceState extends State<CompanyWorkspace> {
   }
 
   Future<void> _reload() async {
+    _invalidateGuideAuthority();
     if (mounted) setState(() => _loading = true);
     final generation = _generation;
     try {
@@ -256,7 +460,10 @@ class CompanyWorkspaceState extends State<CompanyWorkspace> {
       if (_selected != null) {
         await _loadCompany(_selected!, generation);
       } else {
-        setState(() => _loading = false);
+        setState(() {
+          _loading = false;
+          _membership = null;
+        });
       }
       if (mounted && generation == _generation) widget.onAuthorizedActivity();
     } catch (e) {
@@ -282,6 +489,7 @@ class CompanyWorkspaceState extends State<CompanyWorkspace> {
           : <Membership>[];
       if (!mounted || generation != _generation) return;
       setState(() {
+        _invalidateGuideAuthority();
         _membership = member;
         final services = widget.services;
         if (services != null) {
@@ -328,6 +536,7 @@ class CompanyWorkspaceState extends State<CompanyWorkspace> {
     }
     setState(() {
       _generation++;
+      _invalidateGuideAuthority();
       _enrolling = false;
       _capturing = false;
       _reviewing = false;
@@ -434,67 +643,72 @@ class CompanyWorkspaceState extends State<CompanyWorkspace> {
     _enrolling = true;
   });
   @override
-  Widget build(BuildContext context) => widget.services != null
-      ? _feature(context)
-      : Column(
-          children: [
-            if (widget.attendance != null && _selected != null)
-              TextButton(
-                onPressed: () => setState(() {
-                  _capturing = false;
-                  _enrolling = false;
-                  _reviewing = true;
-                }),
-                child: const Text('Review and attendance history'),
-              ),
-            if (widget.capture != null &&
-                _selected != null &&
-                widget.canCreateCompany)
-              TextButton(
-                onPressed: () => setState(() {
-                  _enrolling = false;
-                  _capturing = true;
-                  _reviewing = false;
-                }),
-                child: const Text('Attendance and receipts'),
-              ),
-            if (widget.enrollment != null && widget.messages != null)
-              TextButton(
-                onPressed: _openEnrollment,
-                child: Text(
-                  _canInvite
-                      ? 'Invite or review join'
-                      : 'Join or receive membership',
+  Widget build(BuildContext context) => _withCompanyGuide(
+    widget.services != null
+        ? _feature(context)
+        : Column(
+            children: [
+              if (widget.attendance != null && _selected != null)
+                TextButton(
+                  onPressed: () => setState(() {
+                    _capturing = false;
+                    _enrolling = false;
+                    _reviewing = true;
+                  }),
+                  child: const Text('Review and attendance history'),
                 ),
-              ),
+              if (widget.capture != null &&
+                  _selected != null &&
+                  widget.canCreateCompany)
+                TextButton(
+                  onPressed: () => setState(() {
+                    _enrolling = false;
+                    _capturing = true;
+                    _reviewing = false;
+                  }),
+                  child: const Text('Attendance and receipts'),
+                ),
+              if (widget.enrollment != null && widget.messages != null)
+                TextButton(
+                  onPressed: _openEnrollment,
+                  child: Text(
+                    _canInvite
+                        ? 'Invite or review join'
+                        : 'Join or receive membership',
+                  ),
+                ),
 
-            Row(
-              children: [
-                Expanded(
-                  child: CompanySwitcher(
-                    companies: _companies,
-                    selected: _selected,
-                    onSelected: _switch,
+              Row(
+                children: [
+                  Expanded(
+                    child: CompanySwitcher(
+                      companies: _companies,
+                      selected: _selected,
+                      onSelected: _switch,
+                    ),
                   ),
-                ),
-                if (widget.canCreateCompany)
-                  IconButton(
-                    tooltip: 'Create company',
-                    onPressed: () => _newDraft(setup: true),
-                    icon: const Icon(Icons.add_business),
-                  ),
-              ],
-            ),
-            if (_selected != null && !_setup)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Text(
-                  '${_selected!.timeZoneId} · Root ${_selected!.rootFingerprint.substring(0, _selected!.rootFingerprint.length.clamp(0, 12))}',
-                ),
+                  if (widget.canCreateCompany)
+                    GuideTarget(
+                      id: 'companies-choose',
+                      child: IconButton(
+                        tooltip: 'Create company',
+                        onPressed: () => _newDraft(setup: true),
+                        icon: const Icon(Icons.add_business),
+                      ),
+                    ),
+                ],
               ),
-            Expanded(child: _body()),
-          ],
-        );
+              if (_selected != null && !_setup)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    '${_selected!.timeZoneId} · Root ${_selected!.rootFingerprint.substring(0, _selected!.rootFingerprint.length.clamp(0, 12))}',
+                  ),
+                ),
+              Expanded(child: _body()),
+            ],
+          ),
+  );
   Widget _body() {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_reviewing && widget.attendance != null && _selected != null) {
@@ -620,13 +834,17 @@ class CompanyWorkspaceState extends State<CompanyWorkspace> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            const GuideInvitation(guideId: 'companies'),
             const Text(
               'Join your company with an invitation, or create a company to manage staff.',
             ),
             if (widget.enrollment != null && widget.messages != null)
-              FilledButton(
-                onPressed: _openEnrollment,
-                child: const Text('Join company'),
+              GuideTarget(
+                id: 'membership-open',
+                child: FilledButton(
+                  onPressed: _openEnrollment,
+                  child: const Text('Join company'),
+                ),
               ),
             if (_error != null) Text(_error!),
             FilledButton(
@@ -789,13 +1007,21 @@ class CompanyWorkspaceState extends State<CompanyWorkspace> {
   Future<void> _report() async {
     final company = _selected!;
     await widget.host!.open(
-      context,
-      AttendanceReportScreen(
-        services: widget.services!,
-        session: widget.session,
-        company: company,
-        canExport: _canExport,
-        personalAllowed: widget.canCreateCompany,
+      _sceneContext ?? context,
+      GuideSceneBinding(
+        guideContext: _companyGuide!,
+        registry: GuideScope.registryOf(context),
+        child: CompanyGuideScene(
+          identity: Object(),
+          destination: GuideDestination.reports,
+          child: AttendanceReportScreen(
+            services: widget.services!,
+            session: widget.session,
+            company: company,
+            canExport: _canExport,
+            personalAllowed: widget.canCreateCompany,
+          ),
+        ),
       ),
       'attendance-report',
     );
@@ -856,10 +1082,13 @@ class CompanyWorkspaceState extends State<CompanyWorkspace> {
               ),
             ),
             if (widget.canCreateCompany)
-              IconButton(
-                tooltip: 'Create company',
-                onPressed: () => _newDraft(setup: true),
-                icon: const Icon(Icons.add_business),
+              GuideTarget(
+                id: 'companies-choose',
+                child: IconButton(
+                  tooltip: 'Create company',
+                  onPressed: () => _newDraft(setup: true),
+                  icon: const Icon(Icons.add_business),
+                ),
               ),
           ],
         ),
@@ -1046,18 +1275,24 @@ class CompanyWorkspaceState extends State<CompanyWorkspace> {
             child: const Text('Correct company name'),
           ),
         if (_canExport || widget.canCreateCompany)
-          FilledButton.icon(
-            onPressed: _report,
-            icon: const Icon(Icons.file_download_outlined),
-            label: const Text('Attendance report'),
+          GuideTarget(
+            id: 'reports-scope',
+            child: FilledButton.icon(
+              onPressed: _report,
+              icon: const Icon(Icons.file_download_outlined),
+              label: const Text('Attendance report'),
+            ),
           ),
         if (widget.enrollment != null && widget.messages != null)
-          OutlinedButton(
-            onPressed: _openEnrollment,
-            child: Text(
-              _canInvite
-                  ? 'Invite or review join'
-                  : 'Join or receive membership',
+          GuideTarget(
+            id: 'membership-open',
+            child: OutlinedButton(
+              onPressed: _openEnrollment,
+              child: Text(
+                _canInvite
+                    ? 'Invite or review join'
+                    : 'Join or receive membership',
+              ),
             ),
           ),
         if (widget.onRecovery != null)

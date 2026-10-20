@@ -277,8 +277,8 @@ class CheckProfileGateState extends State<CheckProfileGate>
         replacement: const Scaffold(
           body: Center(child: Text('Raze Check locked view')),
         ),
-        child: GuideScene(
-          context: _guideContext!,
+        child: _guideBoundary(
+          guideContext: _guideContext!,
           child: Builder(
             builder: (sceneContext) {
               _routingContext = sceneContext;
@@ -312,6 +312,17 @@ class CheckProfileGateState extends State<CheckProfileGate>
       ),
     );
   }
+
+  Widget _guideBoundary({
+    required GuideContext guideContext,
+    required Widget child,
+  }) => _session != null && widget.companies != null
+      ? GuideSceneBinding(
+          guideContext: guideContext,
+          registry: GuideScope.registryOf(context),
+          child: child,
+        )
+      : GuideScene(context: guideContext, child: child);
 
   Widget _content(BuildContext context) {
     if (_session != null) {

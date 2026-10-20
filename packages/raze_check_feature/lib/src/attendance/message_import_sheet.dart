@@ -1,3 +1,4 @@
+import '../guides/guide_scope.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:raze_check_core/raze_check_core.dart';
@@ -12,6 +13,29 @@ final class FeatureMessagePort
   FeatureMessagePort({required this.context, required this.create});
   final BuildContext Function() context;
   final TransferPort Function(TransferGuard) create;
+  Future<T> _withGuidePaused<T>(Future<T> Function() action) async {
+    final source = context();
+    final guides = source.mounted ? GuideScope.maybeOf(source) : null;
+    final original = guides?.currentContext;
+    final wasPaused = guides?.paused ?? false;
+    guides?.setPaused(true);
+    try {
+      return await action();
+    } finally {
+      // Native outcomes retain their existing business guard. Guide resumption
+      // is independently limited to the original live domain context.
+      try {
+        await original?.validateCurrent();
+        if (source.mounted && !wasPaused) guides?.setPaused(false);
+      } catch (_) {
+        if (original != null) {
+          guides?.invalidateAuthority(original.authorityToken);
+        }
+        if (!wasPaused) guides?.setPaused(false);
+      }
+    }
+  }
+
   @override
   Future<Uint8List?> receive() =>
       throw StateError('Native transfer requires original context');
@@ -20,6 +44,10 @@ final class FeatureMessagePort
       throw StateError('Native transfer requires original context');
   @override
   Future<Uint8List?> receiveFor(
+    Set<MessageKind> allowed,
+    TransferGuard guard,
+  ) => _withGuidePaused(() => _receiveFor(allowed, guard));
+  Future<Uint8List?> _receiveFor(
     Set<MessageKind> allowed,
     TransferGuard guard,
   ) async {
@@ -62,7 +90,9 @@ final class FeatureMessagePort
   }
 
   @override
-  Future<void> sendFor(Uint8List bytes, TransferGuard guard) async {
+  Future<void> sendFor(Uint8List bytes, TransferGuard guard) =>
+      _withGuidePaused(() => _sendFor(bytes, guard));
+  Future<void> _sendFor(Uint8List bytes, TransferGuard guard) async {
     await guard();
     final ctx = context();
     if (!ctx.mounted) return;

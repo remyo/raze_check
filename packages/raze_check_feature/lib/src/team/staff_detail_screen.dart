@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:raze_check_core/raze_check_core.dart';
+import '../guides/guide_target.dart';
 
 class StaffDetailScreen extends StatefulWidget {
   const StaffDetailScreen({
@@ -73,26 +74,32 @@ class _StaffDetailScreenState extends State<StaffDetailScreen> {
       const SizedBox(height: 12),
       const Text('A manual staff record does not require an enrolled phone.'),
       if (widget.error != null) Text(widget.error!),
-      FilledButton(
-        onPressed: widget.busy
-            ? null
-            : () => widget.onSave(
-                StaffDraft(
-                  name: _fields['name']!.text,
-                  employeeNumber: _optional('employeeNumber'),
-                  contact: _optional('contact'),
-                  birthday: _optional('birthday'),
-                  department: _optional('department'),
-                  position: _optional('position'),
-                  joiningDate: _optional('joiningDate'),
+      GuideTarget(
+        id: 'team-details',
+        child: FilledButton(
+          onPressed: widget.busy
+              ? null
+              : () => widget.onSave(
+                  StaffDraft(
+                    name: _fields['name']!.text,
+                    employeeNumber: _optional('employeeNumber'),
+                    contact: _optional('contact'),
+                    birthday: _optional('birthday'),
+                    department: _optional('department'),
+                    position: _optional('position'),
+                    joiningDate: _optional('joiningDate'),
+                  ),
                 ),
-              ),
-        child: const Text('Save staff'),
+          child: const Text('Save staff'),
+        ),
       ),
       if (widget.onOperatorAccess != null)
-        OutlinedButton(
-          onPressed: widget.busy ? null : widget.onOperatorAccess,
-          child: const Text('Manage operator access'),
+        GuideTarget(
+          id: 'team-capabilities',
+          child: OutlinedButton(
+            onPressed: widget.busy ? null : widget.onOperatorAccess,
+            child: const Text('Manage operator access'),
+          ),
         ),
       if (widget.onDeactivate != null) ...[
         TextField(

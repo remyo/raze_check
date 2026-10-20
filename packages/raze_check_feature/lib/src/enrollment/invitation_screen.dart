@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../attendance/message_qr.dart';
 import 'package:raze_check_core/raze_check_core.dart';
+import '../guides/guide_target.dart';
+import '../guides/guide_invitation.dart';
 
 class EnrollmentMessageView extends StatelessWidget {
   const EnrollmentMessageView({super.key, required this.message});
@@ -33,12 +35,16 @@ class InvitationScreen extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     children: [
       Text(company.name, style: Theme.of(context).textTheme.titleLarge),
+      const GuideInvitation(guideId: 'membership'),
       const Text('Confirm this root fingerprint with the joining person:'),
       SelectableText(company.rootFingerprint),
       EnrollmentMessageView(message: message),
-      FilledButton(
-        onPressed: busy ? null : onSend,
-        child: const Text('Send invitation'),
+      GuideTarget(
+        id: 'membership-invite',
+        child: FilledButton(
+          onPressed: busy ? null : onSend,
+          child: const Text('Send invitation'),
+        ),
       ),
     ],
   );

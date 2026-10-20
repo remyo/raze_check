@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'guide_scope.dart';
+import 'welcome_screen.dart';
 
 class GuideInvitation extends StatelessWidget {
   const GuideInvitation({super.key, required this.guideId});
@@ -10,9 +11,9 @@ class GuideInvitation extends StatelessWidget {
     if (controller == null || !GuideScope.isVisibleOf(context)) {
       return const SizedBox.shrink();
     }
-    return ListenableBuilder(
-      listenable: controller,
-      builder: (context, _) {
+    return GuideStateBuilder(
+      controller: controller,
+      builder: (context) {
         if (!controller.shouldInvite(guideId) || controller.paused) {
           return const SizedBox.shrink();
         }

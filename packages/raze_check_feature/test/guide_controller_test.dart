@@ -7,6 +7,102 @@ import 'package:raze_check_feature/src/guides/guide_models.dart';
 import 'support/guide_fixture.dart';
 
 void main() {
+  for (final change in [
+    'none',
+    'scene',
+    'authority',
+    'skip',
+    'start',
+    'next',
+    'back',
+    'variant',
+  ]) {
+    test(
+      'native pause resumes only the original bound scene: $change',
+      () async {
+        final c = GuideController(catalog: GuideCatalog());
+        await c.initialize();
+        final source = testGuideContext(
+          variants: const {'companies': 'personal'},
+        );
+        await c.bind(source);
+        c.start('companies');
+        c.next();
+        c.setPaused(true);
+        c.invalidateScene(source.token);
+        if (change == 'authority') c.invalidateAuthority(source.authorityToken);
+        if (change == 'skip') c.skip();
+        if (change == 'start') c.start('companies', restart: true);
+        if (change == 'next') c.next();
+        if (change == 'back') c.back();
+        c.setPaused(false);
+        await c.bind(
+          change == 'variant'
+              ? testGuideContext(
+                  token: source.token,
+                  authorityToken: source.authorityToken,
+                  variants: const {'welcome': 'public'},
+                )
+              : change == 'scene'
+              ? testGuideContext(
+                  authorityToken: source.authorityToken,
+                  variants: const {'companies': 'personal'},
+                )
+              : source,
+        );
+        if (change == 'none') {
+          expect(c.active?.stepIndex, 1);
+          expect(c.active?.contextToken, same(source.token));
+        } else {
+          expect(c.active, isNull);
+        }
+      },
+    );
+  }
+
+  for (final cancel in [false, true]) {
+    test(
+      'synchronous panel handoff waits for validated bind or cancellation: $cancel',
+      () async {
+        final c = GuideController(catalog: GuideCatalog());
+        await c.initialize();
+        final authority = Object(), validation = Completer<void>();
+        var opened = false, finished = false;
+        final destination = testGuideContext(
+          authorityToken: authority,
+          destination: GuideDestination.createCompany,
+          variants: const {'companies': 'personal'},
+          validateCurrent: () => validation.future,
+        );
+        await c.bind(
+          testGuideContext(
+            authorityToken: authority,
+            variants: const {'companies': 'personal'},
+            navigation: {
+              GuideDestination.createCompany: () => c.navigateToScene(() {
+                opened = true;
+              }),
+            },
+          ),
+        );
+        c.start('companies');
+        final request = c.showDestination().then((_) => finished = true);
+        await Future<void>.delayed(Duration.zero);
+        expect(opened, isTrue);
+        expect(finished, isFalse);
+        final binding = c.bind(destination);
+        await Future<void>.delayed(Duration.zero);
+        expect(finished, isFalse);
+        if (cancel) c.skip();
+        validation.complete();
+        await binding;
+        await request;
+        expect(c.active?.definition.id, cancel ? isNull : 'companies');
+        if (!cancel) expect(c.active!.contextToken, same(destination.token));
+      },
+    );
+  }
+
   for (final interruption in [
     'none',
     'unrelated',

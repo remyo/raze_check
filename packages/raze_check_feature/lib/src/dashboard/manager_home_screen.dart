@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:raze_check_core/raze_check_core.dart';
 import 'staff_home_screen.dart';
+import '../guides/guide_target.dart';
+import '../guides/guide_invitation.dart';
 
 class ManagerHomeScreen extends StatelessWidget {
   const ManagerHomeScreen({
@@ -23,10 +25,12 @@ class ManagerHomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final actions = <(String, IconData, VoidCallback)>[
-      if (onWorkplace != null) ('Workplace QR', Icons.qr_code, onWorkplace!),
-      if (onInvite != null) ('Invite staff', Icons.person_add_alt, onInvite!),
-      if (onManual != null) ('Manual entry', Icons.edit_note, onManual!),
+    final actions = <(String, IconData, VoidCallback, String?)>[
+      if (onWorkplace != null)
+        ('Workplace QR', Icons.qr_code, onWorkplace!, 'capture-open'),
+      if (onInvite != null)
+        ('Invite staff', Icons.person_add_alt, onInvite!, 'membership-open'),
+      if (onManual != null) ('Manual entry', Icons.edit_note, onManual!, null),
     ];
     return DashboardLayout(
       children: [
@@ -39,6 +43,7 @@ class ManagerHomeScreen extends StatelessWidget {
           title: 'Company attendance',
           subtitle: 'Records held on this device.',
         ),
+        const GuideInvitation(guideId: 'review'),
         DashboardCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -96,10 +101,13 @@ class ManagerHomeScreen extends StatelessWidget {
               const SizedBox(height: 18),
               SizedBox(
                 width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: onAttendance,
-                  icon: const Icon(Icons.inbox_outlined, size: 19),
-                  label: const Text('Import and review'),
+                child: GuideTarget(
+                  id: 'review-details',
+                  child: FilledButton.icon(
+                    onPressed: onAttendance,
+                    icon: const Icon(Icons.inbox_outlined, size: 19),
+                    label: const Text('Import and review'),
+                  ),
                 ),
               ),
             ],
@@ -148,33 +156,39 @@ class ManagerHomeScreen extends StatelessWidget {
                       for (final action in actions)
                         SizedBox(
                           width: width,
-                          child: OutlinedButton(
-                            onPressed: action.$3,
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: theme.colorScheme.onSurface,
-                              backgroundColor: theme.colorScheme.surface,
-                              side: BorderSide(
-                                color: theme.colorScheme.outlineVariant,
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 14,
-                              ),
-                            ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(action.$2, size: 22),
-                                const SizedBox(height: 8),
-                                Text(
-                                  action.$1,
-                                  textAlign: TextAlign.center,
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    fontSize: 11,
+                          child: Builder(
+                            builder: (context) {
+                              final button = OutlinedButton(
+                                onPressed: action.$3,
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: theme.colorScheme.onSurface,
+                                  backgroundColor: theme.colorScheme.surface,
+                                  side: BorderSide(
+                                    color: theme.colorScheme.outlineVariant,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 14,
                                   ),
                                 ),
-                              ],
-                            ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(action.$2, size: 22),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      action.$1,
+                                      textAlign: TextAlign.center,
+                                      style: theme.textTheme.labelSmall
+                                          ?.copyWith(fontSize: 11),
+                                    ),
+                                  ],
+                                ),
+                              );
+                              return action.$4 == null
+                                  ? button
+                                  : GuideTarget(id: action.$4!, child: button);
+                            },
                           ),
                         ),
                     ],

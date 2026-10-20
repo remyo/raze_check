@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:raze_check_core/raze_check_core.dart';
+import '../guides/guide_target.dart';
 
 class ReceiptScreen extends StatelessWidget {
   const ReceiptScreen({
@@ -18,11 +19,14 @@ class ReceiptScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Column(
     children: [
-      Text(
-        receipt.delivery == DeliveryStatus.localOnly
-            ? 'Saved on this device'
-            : receipt.delivery.name,
-        style: Theme.of(context).textTheme.titleLarge,
+      GuideTarget(
+        id: 'capture-saved',
+        child: Text(
+          receipt.delivery == DeliveryStatus.localOnly
+              ? 'Saved on this device'
+              : receipt.delivery.name,
+          style: Theme.of(context).textTheme.titleLarge,
+        ),
       ),
       const Text(
         'Manager receipt and approval are separate from local saving.',
@@ -55,9 +59,12 @@ class ReceiptScreen extends StatelessWidget {
           'This receipt needs file transfer to preserve its complete signed bytes.',
         ),
       if (onShare != null)
-        FilledButton(
-          onPressed: busy ? null : onShare,
-          child: const Text('Share receipt'),
+        GuideTarget(
+          id: 'exchange-share',
+          child: FilledButton(
+            onPressed: busy ? null : onShare,
+            child: const Text('Share receipt'),
+          ),
         ),
       TextButton(
         onPressed: busy ? null : onNewPunch,

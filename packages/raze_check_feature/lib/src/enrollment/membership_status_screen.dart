@@ -1,3 +1,7 @@
+import '../guides/company_guide_bindings.dart';
+import '../guides/guide_models.dart';
+import '../guides/guide_target.dart';
+import '../guides/guide_invitation.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../attendance/message_import_sheet.dart';
@@ -37,9 +41,12 @@ class MembershipStatusScreen extends StatelessWidget {
           child: const Text('Send join request again'),
         ),
       if (!active)
-        FilledButton(
-          onPressed: busy ? null : onReceive,
-          child: const Text('Receive membership'),
+        GuideTarget(
+          id: 'membership-receive',
+          child: FilledButton(
+            onPressed: busy ? null : onReceive,
+            child: const Text('Receive membership'),
+          ),
         ),
     ],
   );
@@ -78,7 +85,7 @@ class EnrollmentWorkspace extends StatefulWidget {
 }
 
 class _EnrollmentWorkspaceState extends State<EnrollmentWorkspace> {
-  bool _busy = false, _accepted = false, _active = false;
+  bool _busy = false, _accepted = false, _active = false, _guideReady = false;
   String? _error, _fingerprint, _existingEmployeeId;
   SignedMessage? _invitation, _candidate, _pending, _grant;
   Uint8List? _candidateBytes;
@@ -110,7 +117,10 @@ class _EnrollmentWorkspaceState extends State<EnrollmentWorkspace> {
   }
 
   Future<void> _loadPending() async {
-    if (widget.canManage) return;
+    if (widget.canManage) {
+      _guideReady = true;
+      return;
+    }
     await _run((epoch, session) async {
       final company = widget.company;
       final member = company == null
@@ -124,6 +134,7 @@ class _EnrollmentWorkspaceState extends State<EnrollmentWorkspace> {
         _pending = pending.firstOrNull;
       });
     });
+    if (mounted) setState(() => _guideReady = true);
   }
 
   @override
@@ -133,6 +144,7 @@ class _EnrollmentWorkspaceState extends State<EnrollmentWorkspace> {
         old.company?.id != widget.company?.id) {
       _cancelRoot();
       _epoch++;
+      _guideReady = false;
       _busy = false;
       _accepted = false;
       _active = false;
@@ -339,10 +351,32 @@ class _EnrollmentWorkspaceState extends State<EnrollmentWorkspace> {
   }
 
   @override
-  Widget build(BuildContext context) => SingleChildScrollView(
+  Widget build(BuildContext context) => !_guideReady
+      ? _content()
+      : CompanyGuideScene(
+          identity: (
+            _epoch,
+            _candidate,
+            _pending,
+            _active,
+            _review,
+            _grant,
+            _invitation,
+            _existingEmployeeId,
+          ),
+          destination: GuideDestination.joinCompany,
+          child: _content(),
+        );
+  Widget _content() => SingleChildScrollView(
     padding: const EdgeInsets.all(24),
     child: Column(
       children: [
+        if (_candidate == null &&
+            _pending == null &&
+            _review == null &&
+            _grant == null &&
+            _invitation == null)
+          const GuideInvitation(guideId: 'membership'),
         if (_busy) const LinearProgressIndicator(),
         if (_error != null) Text(_error!, key: const Key('enrollment-error')),
         if (_savedPending.length > 1 && _candidate == null)
@@ -448,38 +482,52 @@ class _EnrollmentWorkspaceState extends State<EnrollmentWorkspace> {
             ),
           ),
         if (widget.canManage && widget.company != null) ...[
-          FilledButton(
-            onPressed: _busy
-                ? null
-                : () {
-                    final original = _context();
-                    _run((epoch, session) async {
-                      final message = await widget.service.createInvitation(
-                        original,
-                      );
-                      if (!_current(epoch)) return;
-                      setState(() {
-                        _invitation = message;
-                        _review = null;
-                        _grant = null;
-                        _operation = widget.ids.next();
-                      });
-                    });
-                  },
-            child: const Text('Create invitation'),
+          GuideTarget(
+            id: _invitation == null
+                ? 'membership-invite'
+                : 'membership-create-another',
+            child: GuideTarget(
+              id: 'membership-open',
+              child: FilledButton(
+                onPressed: _busy
+                    ? null
+                    : () {
+                        final original = _context();
+                        _run((epoch, session) async {
+                          final message = await widget.service.createInvitation(
+                            original,
+                          );
+                          if (!_current(epoch)) return;
+                          setState(() {
+                            _invitation = message;
+                            _review = null;
+                            _grant = null;
+                            _operation = widget.ids.next();
+                          });
+                        });
+                      },
+                child: const Text('Create invitation'),
+              ),
+            ),
           ),
           TextButton(
             onPressed: _busy ? null : _readJoin,
             child: const Text('Read join request'),
           ),
         ] else if (_pending == null && !_active && _candidate == null) ...[
-          FilledButton(
-            onPressed: _busy ? null : _readInvitation,
-            child: const Text('Read invitation'),
+          GuideTarget(
+            id: 'membership-open',
+            child: FilledButton(
+              onPressed: _busy ? null : _readInvitation,
+              child: const Text('Read invitation'),
+            ),
           ),
-          TextButton(
-            onPressed: _busy ? null : _receiveGrant,
-            child: const Text('Receive membership'),
+          GuideTarget(
+            id: 'membership-receive',
+            child: TextButton(
+              onPressed: _busy ? null : _receiveGrant,
+              child: const Text('Receive membership'),
+            ),
           ),
         ],
       ],

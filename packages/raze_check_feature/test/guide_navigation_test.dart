@@ -5,7 +5,7 @@ import 'package:raze_check_feature/src/guides/guide_scope.dart';
 import 'package:raze_check_feature/src/guides/guide_models.dart';
 import 'package:raze_check_feature/src/guides/guide_library_screen.dart';
 import 'support/guide_fixture.dart';
-import 'guide_entry_test.dart' show mountGuides;
+import 'guide_entry_test.dart' show mountGuides, drainGuideFuture;
 import 'support/dashboard_fixture.dart';
 
 void main() {
@@ -13,7 +13,7 @@ void main() {
     testWidgets(
       'library Show me reveals the real same-route destination (outer=$outerHost)',
       (tester) async {
-        await mountGuides(
+        final pair = await mountGuides(
           tester,
           automatic: false,
           outer: outerHost ? GlobalKey<NavigatorState>() : null,
@@ -22,54 +22,66 @@ void main() {
         final workspace = tester.element(find.byType(CompanyWorkspace));
         final controller = GuideScope.maybeOf(workspace)!;
         final original = controller.currentContext!;
-        final create = tester
-            .widget<FilledButton>(
-              find.widgetWithText(FilledButton, 'Create company'),
-            )
-            .onPressed!;
-        var navigations = 0;
-        await controller.bind(
-          testGuideContext(
-            token: original.token,
-            authorityToken: original.authorityToken,
-            variants: {'welcome': 'public', 'companies': 'personal'},
-            validateCurrent: original.validateCurrent,
-            navigation: {
-              GuideDestination.createCompany: () async {
-                await original.validateCurrent();
-                if (!(ModalRoute.isCurrentOf(workspace) ?? false) ||
-                    !GuideScope.isVisibleOf(workspace)) {
-                  throw StateError(
-                    'Workspace must be current before navigation',
-                  );
-                }
-                navigations++;
-                create();
-                await tester.binding.endOfFrame;
-                await controller.bind(
-                  testGuideContext(
-                    authorityToken: original.authorityToken,
-                    destination: GuideDestination.createCompany,
-                    variants: {'welcome': 'public', 'companies': 'personal'},
-                    validateCurrent: original.validateCurrent,
-                  ),
-                );
-              },
-            },
-          ),
-        );
+        expect(controller.audience.variants['companies'], 'personal');
         await tester.tap(find.byTooltip('Settings'));
         await tester.pumpAndSettle();
         await tester.tap(find.text('Help & Guides'));
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Start'));
+        await tester.tap(
+          find.descendant(
+            of: find.ancestor(
+              of: find.text('Set up and switch companies'),
+              matching: find.byType(Card),
+            ),
+            matching: find.text('Start'),
+          ),
+        );
         await tester.pumpAndSettle();
         await tester.tap(find.text('Show me'));
         await tester.pumpAndSettle();
         expect(find.widgetWithText(TextField, 'Company name'), findsOneWidget);
         expect(find.byType(GuideLibraryScreen), findsNothing);
-        expect(navigations, 1);
+        expect(controller.currentContext!.token, isNot(same(original.token)));
+        expect(
+          controller.currentContext!.destination,
+          GuideDestination.createCompany,
+        );
         expect(controller.active?.stepIndex, 0);
+        await tester.tap(find.text('Next'));
+        await tester.pumpAndSettle();
+        expect(
+          tester.getSize(find.byKey(const Key('guide-highlight'))).height,
+          greaterThan(0),
+        );
+        expect(find.text('Step 2 of 4'), findsOneWidget);
+        if (!outerHost) {
+          controller.skip();
+          tester
+              .widget<CompanySetupScreen>(find.byType(CompanySetupScreen))
+              .onCancel();
+          await tester.pumpAndSettle();
+          final before = await tester.runAsync(
+            () => pair.staff.storage.count('membership'),
+          );
+          late Future<void> navigation;
+          await tester.runAsync(() async {
+            controller.start('membership', restart: true);
+            navigation = controller.showDestination();
+            await tester.pump();
+          });
+          await settleFeature(tester);
+          await drainGuideFuture(tester, navigation);
+          await tester.pumpAndSettle();
+          expect(find.text('Read invitation'), findsOneWidget);
+          expect(find.text('Membership active'), findsNothing);
+          controller.next();
+          controller.back();
+          controller.skip();
+          expect(
+            await tester.runAsync(() => pair.staff.storage.count('membership')),
+            before,
+          );
+        }
       },
     );
   }

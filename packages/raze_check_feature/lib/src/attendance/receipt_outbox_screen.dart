@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:raze_check_core/raze_check_core.dart';
+import '../guides/guide_target.dart';
+import '../guides/guide_invitation.dart';
 
 class ReceiptOutboxScreen extends StatelessWidget {
   const ReceiptOutboxScreen({
@@ -12,7 +14,8 @@ class ReceiptOutboxScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Column(
     children: [
-      const Text('Receipt outbox'),
+      const GuideInvitation(guideId: 'exchange'),
+      const GuideTarget(id: 'exchange-outbox', child: Text('Receipt outbox')),
       if (receipts.isEmpty) const Text('No local receipts awaiting delivery.'),
       for (final r in receipts)
         ListTile(

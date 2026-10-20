@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:raze_check_core/raze_check_core.dart';
+import '../guides/guide_target.dart';
+import '../guides/guide_invitation.dart';
 
 class CompanySetupScreen extends StatefulWidget {
   const CompanySetupScreen({
@@ -31,31 +33,39 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
     padding: const EdgeInsets.all(24),
     children: [
       Text('Create company', style: Theme.of(context).textTheme.headlineSmall),
-      TextField(
-        controller: _name,
-        decoration: InputDecoration(
-          labelText: 'Company name',
-          helperText: 'Up to 120 Unicode characters',
-          errorText: _name.text.isNotEmpty && !compatibleCompanyName(_name.text)
-              ? 'Enter a name of 1–120 Unicode characters.'
-              : null,
+      const GuideInvitation(guideId: 'companies'),
+      GuideTarget(
+        id: 'companies-name',
+        child: TextField(
+          controller: _name,
+          decoration: InputDecoration(
+            labelText: 'Company name',
+            helperText: 'Up to 120 Unicode characters',
+            errorText:
+                _name.text.isNotEmpty && !compatibleCompanyName(_name.text)
+                ? 'Enter a name of 1–120 Unicode characters.'
+                : null,
+          ),
+          onChanged: (_) => setState(() {}),
         ),
-        onChanged: (_) => setState(() {}),
       ),
       const SizedBox(height: 16),
-      OutlinedButton(
-        onPressed: widget.busy
-            ? null
-            : () async {
-                final zone = await showSearch<String>(
-                  context: context,
-                  delegate: _ZoneSearch(CompanyTimeZones.all),
-                );
-                if (zone != null && zone.isNotEmpty && mounted) {
-                  setState(() => _zone = zone);
-                }
-              },
-        child: Text(_zone ?? 'Select IANA time zone'),
+      GuideTarget(
+        id: 'companies-zone',
+        child: OutlinedButton(
+          onPressed: widget.busy
+              ? null
+              : () async {
+                  final zone = await showSearch<String>(
+                    context: context,
+                    delegate: _ZoneSearch(CompanyTimeZones.all),
+                  );
+                  if (zone != null && zone.isNotEmpty && mounted) {
+                    setState(() => _zone = zone);
+                  }
+                },
+          child: Text(_zone ?? 'Select IANA time zone'),
+        ),
       ),
       const Text(
         'Choose the company time zone explicitly. All zones are bundled for offline use.',

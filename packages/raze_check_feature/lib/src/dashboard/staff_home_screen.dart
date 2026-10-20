@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:raze_check_core/raze_check_core.dart';
 import 'package:timezone/timezone.dart' as tz;
 import '../theme/check_theme.dart';
+import '../guides/guide_target.dart';
+import '../guides/guide_invitation.dart';
 
 String attendanceTime(int? utc, String zone) {
   if (utc == null) return 'No receipts received yet';
@@ -55,6 +57,7 @@ class StaffHomeScreen extends StatelessWidget {
           title: 'Your attendance',
           subtitle: 'Your records, saved on this device.',
         ),
+        const GuideInvitation(guideId: 'capture'),
         DashboardCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -129,10 +132,13 @@ class StaffHomeScreen extends StatelessWidget {
               const SizedBox(height: 18),
               SizedBox(
                 width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: onCapture,
-                  icon: const Icon(Icons.qr_code_scanner, size: 19),
-                  label: const Text('Record attendance'),
+                child: GuideTarget(
+                  id: 'capture-open',
+                  child: FilledButton.icon(
+                    onPressed: onCapture,
+                    icon: const Icon(Icons.qr_code_scanner, size: 19),
+                    label: const Text('Record attendance'),
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -167,15 +173,18 @@ class StaffHomeScreen extends StatelessWidget {
             ),
           ],
         ),
-        DashboardSupportCard(
-          icon: Icons.receipt_long_outlined,
-          title: overview.savedOnDevice > 0
-              ? '${overview.savedOnDevice} ${overview.savedOnDevice == 1 ? "receipt" : "receipts"} ready to send'
-              : 'No receipts waiting to send',
-          body:
-              'Send your receipts, then receive confirmation from management.',
-          actionLabel: 'Open attendance and requests',
-          onAction: onAttendance,
+        GuideTarget(
+          id: 'review-details',
+          child: DashboardSupportCard(
+            icon: Icons.receipt_long_outlined,
+            title: overview.savedOnDevice > 0
+                ? '${overview.savedOnDevice} ${overview.savedOnDevice == 1 ? "receipt" : "receipts"} ready to send'
+                : 'No receipts waiting to send',
+            body:
+                'Send your receipts, then receive confirmation from management.',
+            actionLabel: 'Open attendance and requests',
+            onAction: onAttendance,
+          ),
         ),
         if (backupLabel != null)
           DashboardBackupNote(label: backupLabel!, onBackup: onBackup),

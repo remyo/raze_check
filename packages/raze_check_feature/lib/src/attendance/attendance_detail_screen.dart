@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:raze_check_core/raze_check_core.dart';
 import '../enrollment/invitation_screen.dart';
+import '../guides/guide_target.dart';
 
 class AttendanceDetailScreen extends StatefulWidget {
   const AttendanceDetailScreen({
@@ -41,21 +42,31 @@ class _AttendanceDetailScreenState extends State<AttendanceDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final r = widget.record;
+    final status = Text(
+      'Attendance ${r.review.name}',
+      style: Theme.of(context).textTheme.titleLarge,
+    );
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        Text(
-          'Attendance ${r.review.name}',
-          style: Theme.of(context).textTheme.titleLarge,
-        ),
+        if (widget.canManage)
+          status
+        else
+          GuideTarget(id: 'review-decision', child: status),
         Text('Employee ${r.employeeId}'),
-        Text(
-          r.source == AttendanceSource.manual
-              ? 'Manual · local record'
-              : 'Receipt · delivery ${r.delivery.name}',
+        GuideTarget(
+          id: 'review-hints',
+          child: Text(
+            r.source == AttendanceSource.manual
+                ? 'Manual · local record'
+                : 'Receipt · delivery ${r.delivery.name}',
+          ),
         ),
-        Text(
-          'Original: ${r.data['originalKind']} · offset ${r.data['originalOffsetMinutes']} min · ${DateTime.fromMillisecondsSinceEpoch(r.claimedUtcMs, isUtc: true).toIso8601String()}',
+        GuideTarget(
+          id: 'review-details',
+          child: Text(
+            'Original: ${r.data['originalKind']} · offset ${r.data['originalOffsetMinutes']} min · ${DateTime.fromMillisecondsSinceEpoch(r.claimedUtcMs, isUtc: true).toIso8601String()}',
+          ),
         ),
         Text(
           'Effective: ${r.effectiveKind.name} · ${DateTime.fromMillisecondsSinceEpoch(r.effectiveUtcMs, isUtc: true).toIso8601String()} · offset ${r.effectiveOffsetMinutes} min',
@@ -77,10 +88,13 @@ class _AttendanceDetailScreenState extends State<AttendanceDetailScreen> {
           ),
         ],
         if (widget.canManage) ...[
-          TextField(
-            key: const Key('review-reason'),
-            controller: reason,
-            decoration: const InputDecoration(labelText: 'Review reason'),
+          GuideTarget(
+            id: 'review-decision',
+            child: TextField(
+              key: const Key('review-reason'),
+              controller: reason,
+              decoration: const InputDecoration(labelText: 'Review reason'),
+            ),
           ),
           Wrap(
             spacing: 12,
@@ -102,13 +116,19 @@ class _AttendanceDetailScreenState extends State<AttendanceDetailScreen> {
           ),
         ],
         if (widget.canManage || r.returnEligible)
-          TextButton(
-            onPressed: widget.busy ? null : widget.onCorrect,
-            child: Text(
-              widget.canManage ? 'Correct attendance' : 'Request correction',
+          GuideTarget(
+            id: 'review-correction',
+            child: TextButton(
+              onPressed: widget.busy ? null : widget.onCorrect,
+              child: Text(
+                widget.canManage ? 'Correct attendance' : 'Request correction',
+              ),
             ),
           ),
-        const Text('Decision and correction history'),
+        const GuideTarget(
+          id: 'review-history',
+          child: Text('Decision and correction history'),
+        ),
         for (final d in widget.history)
           ListTile(
             title: Text(
@@ -134,13 +154,20 @@ class _AttendanceDetailScreenState extends State<AttendanceDetailScreen> {
         if (widget.message != null) ...[
           EnrollmentMessageView(message: widget.message!),
           if (widget.onShare != null)
-            FilledButton(
-              onPressed: widget.busy ? null : widget.onShare,
-              child: Text(
-                widget.message!.kind == MessageKind.correctionRequest
-                    ? 'Share correction request'
-                    : 'Share selected return',
-              ),
+            Builder(
+              builder: (context) {
+                final button = FilledButton(
+                  onPressed: widget.busy ? null : widget.onShare,
+                  child: Text(
+                    widget.message!.kind == MessageKind.correctionRequest
+                        ? 'Share correction request'
+                        : 'Share selected return',
+                  ),
+                );
+                return widget.message!.kind == MessageKind.correctionRequest
+                    ? button
+                    : GuideTarget(id: 'exchange-return', child: button);
+              },
             ),
         ],
         TextButton(

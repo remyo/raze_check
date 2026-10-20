@@ -1,3 +1,7 @@
+import '../guides/company_guide_bindings.dart';
+import '../guides/guide_models.dart';
+import '../guides/guide_target.dart';
+import '../guides/guide_invitation.dart';
 import 'package:flutter/material.dart';
 import 'package:raze_check_core/raze_check_core.dart';
 import '../profile/profile_commands.dart';
@@ -33,7 +37,7 @@ class CaptureWorkspace extends StatefulWidget {
 }
 
 class _CaptureWorkspaceState extends State<CaptureWorkspace> {
-  bool _busy = true, _outboxOpen = false;
+  bool _busy = true, _outboxOpen = false, _guideReady = false;
   int _epoch = 0;
   CaptureDraft? _draft;
   AttendanceReceipt? _receipt;
@@ -52,6 +56,7 @@ class _CaptureWorkspaceState extends State<CaptureWorkspace> {
     if (!identical(old.session, widget.session) ||
         old.company.id != widget.company.id) {
       _epoch++;
+      _guideReady = false;
       _draft = null;
       _receipt = null;
       _code = null;
@@ -135,7 +140,12 @@ class _CaptureWorkspaceState extends State<CaptureWorkspace> {
     } catch (e) {
       if (_current(epoch) || (mounted && e is TransferException)) _failure(e);
     } finally {
-      if (_current(epoch)) setState(() => _busy = false);
+      if (_current(epoch)) {
+        setState(() {
+          _busy = false;
+          _guideReady = true;
+        });
+      }
     }
   }
 
@@ -221,7 +231,20 @@ class _CaptureWorkspaceState extends State<CaptureWorkspace> {
     if (_current(epoch)) setState(() => _code = code);
   });
   @override
-  Widget build(BuildContext context) => SingleChildScrollView(
+  Widget build(BuildContext context) => !_guideReady
+      ? _content()
+      : CompanyGuideScene(
+          identity: (
+            _epoch,
+            _receipt?.eventId,
+            _outboxOpen,
+            _code,
+            _draft?.operationId,
+          ),
+          destination: GuideDestination.capture,
+          child: _content(),
+        );
+  Widget _content() => SingleChildScrollView(
     padding: const EdgeInsets.all(24),
     child: Column(
       children: [
@@ -251,34 +274,53 @@ class _CaptureWorkspaceState extends State<CaptureWorkspace> {
             }),
           ),
         ] else ...[
+          const GuideInvitation(guideId: 'capture'),
+          if (!widget.canCreateCode) const GuideInvitation(guideId: 'exchange'),
           if (_draft != null)
             FilledButton(
               onPressed: _busy ? null : _retry,
               child: const Text('Retry saved punch'),
             )
           else if (widget.messages != null) ...[
-            FilledButton(
-              onPressed: _busy ? null : () => _punch(PunchKind.checkIn),
-              child: const Text('Check in'),
+            GuideTarget(
+              id: widget.canCreateCode
+                  ? 'capture-personal-action'
+                  : 'capture-open',
+              child: GuideTarget(
+                id: 'capture-kind',
+                child: GuideTarget(
+                  id: 'capture-read',
+                  child: FilledButton(
+                    onPressed: _busy ? null : () => _punch(PunchKind.checkIn),
+                    child: const Text('Check in'),
+                  ),
+                ),
+              ),
             ),
             FilledButton(
               onPressed: _busy ? null : () => _punch(PunchKind.checkOut),
               child: const Text('Check out'),
             ),
           ],
-          TextButton(
-            onPressed: _busy
-                ? null
-                : () async {
-                    await _reload();
-                    if (mounted) setState(() => _outboxOpen = true);
-                  },
-            child: const Text('Receipt outbox'),
+          GuideTarget(
+            id: 'exchange-outbox',
+            child: TextButton(
+              onPressed: _busy
+                  ? null
+                  : () async {
+                      await _reload();
+                      if (mounted) setState(() => _outboxOpen = true);
+                    },
+              child: const Text('Receipt outbox'),
+            ),
           ),
           if (widget.canCreateCode)
-            FilledButton(
-              onPressed: _busy ? null : _createCode,
-              child: const Text('Display workplace code'),
+            GuideTarget(
+              id: 'capture-open',
+              child: FilledButton(
+                onPressed: _busy ? null : _createCode,
+                child: const Text('Display workplace code'),
+              ),
             ),
           if (_code != null) EnrollmentMessageView(message: _code!),
         ],

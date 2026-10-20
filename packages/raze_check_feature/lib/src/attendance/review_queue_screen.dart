@@ -1,3 +1,7 @@
+import '../guides/company_guide_bindings.dart';
+import '../guides/guide_models.dart';
+import '../guides/guide_target.dart';
+import '../guides/guide_invitation.dart';
 import 'package:flutter/material.dart';
 import 'package:raze_check_core/raze_check_core.dart';
 import '../profile/profile_commands.dart';
@@ -331,13 +335,17 @@ class _ReviewWorkspaceState extends State<ReviewWorkspace> {
     }
   });
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      if (error != null)
-        Padding(padding: const EdgeInsets.all(12), child: Text(error!)),
-      if (busy) const LinearProgressIndicator(),
-      Expanded(child: body()),
-    ],
+  Widget build(BuildContext context) => CompanyGuideScene(
+    identity: (epoch, manual, correcting, selected?.eventId, request, message),
+    destination: GuideDestination.attendance,
+    child: Column(
+      children: [
+        if (error != null)
+          Padding(padding: const EdgeInsets.all(12), child: Text(error!)),
+        if (busy) const LinearProgressIndicator(),
+        Expanded(child: body()),
+      ],
+    ),
   );
   Widget body() {
     if (request != null) {
@@ -473,15 +481,19 @@ class _ReviewWorkspaceState extends State<ReviewWorkspace> {
     }
     return Column(
       children: [
+        const GuideInvitation(guideId: 'review'),
         Wrap(
           children: [
             if (widget.messages != null)
-              TextButton(
-                onPressed: busy ? null : receive,
-                child: Text(
-                  widget.canManage
-                      ? 'Import receipt or correction'
-                      : 'Receive attendance update',
+              GuideTarget(
+                id: widget.canManage ? 'exchange-import' : 'exchange-receive',
+                child: TextButton(
+                  onPressed: busy ? null : receive,
+                  child: Text(
+                    widget.canManage
+                        ? 'Import receipt or correction'
+                        : 'Receive attendance update',
+                  ),
                 ),
               ),
             if (widget.canManage && subjects.isNotEmpty)
@@ -508,9 +520,12 @@ class _ReviewWorkspaceState extends State<ReviewWorkspace> {
           ],
         ),
         Expanded(
-          child: ReviewQueueScreen(
-            records: records,
-            onSelect: (r) => run((e) => open(r.eventId, e)),
+          child: GuideTarget(
+            id: 'review-details',
+            child: ReviewQueueScreen(
+              records: records,
+              onSelect: (r) => run((e) => open(r.eventId, e)),
+            ),
           ),
         ),
       ],

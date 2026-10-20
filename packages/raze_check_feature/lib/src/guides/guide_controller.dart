@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:raze_check_core/raze_check_core.dart';
 import 'guide_catalog.dart';
@@ -10,6 +11,7 @@ final class _Intent {
   final Object authority;
   final Object? originToken;
   bool returning = true;
+  final completion = Completer<void>();
 
   bool acceptsOrigin(GuideContext context) =>
       returning &&
@@ -39,11 +41,32 @@ final class GuideController extends ChangeNotifier {
   GuideContext? _context;
   GuideContext? get currentContext => _context;
   GuideContext? _binding;
-  _Intent? _pending;
+  (GuideRun, GuideContext)? _pausedRun;
+  _Intent? _pendingValue;
+  _Intent? get _pending => _pendingValue;
+  set _pending(_Intent? value) {
+    final previous = _pendingValue;
+    _pendingValue = value;
+    if (previous != null &&
+        !identical(previous, value) &&
+        !previous.completion.isCompleted) {
+      previous.completion.complete();
+    }
+  }
+
+  /// Internal synchronous panel handoff. The matching bind (or cancellation)
+  /// completes this request, rather than the setState callback returning early.
+  Future<void> navigateToScene(VoidCallback navigate) async {
+    final intent = _pending;
+    navigate();
+    if (intent != null) await intent.completion.future;
+  }
+
   int _generation = 0;
   int _requestGeneration = 0;
 
   void _cancelNavigation() {
+    _pausedRun = null;
     _requestGeneration++;
     _pending = null;
   }
@@ -90,7 +113,33 @@ final class GuideController extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool _matchesPause(GuideContext context) {
+    final paused = _pausedRun;
+    return paused != null &&
+        identical(paused.$2.token, context.token) &&
+        identical(paused.$2.authorityToken, context.authorityToken) &&
+        context.audience.variants[paused.$1.definition.id] ==
+            paused.$1.definition.variantId;
+  }
+
+  void _resumePausedRun() {
+    final context = _context, paused = _pausedRun;
+    if (_paused ||
+        context == null ||
+        paused == null ||
+        !_matchesPause(context)) {
+      return;
+    }
+    _pausedRun = null;
+    _active = GuideRun(
+      definition: paused.$1.definition,
+      stepIndex: paused.$1.stepIndex,
+      contextToken: context.token,
+    );
+  }
+
   Future<void> bind(GuideContext context) async {
+    if (_pausedRun != null && !_matchesPause(context)) _pausedRun = null;
     final pending = _pending;
     if (pending != null &&
         !pending.acceptsOrigin(context) &&
@@ -105,6 +154,7 @@ final class GuideController extends ChangeNotifier {
       await context.validateCurrent();
     } catch (_) {
       if (generation == _generation) {
+        _pausedRun = null;
         _pending = null;
         notifyListeners();
       }
@@ -128,6 +178,7 @@ final class GuideController extends ChangeNotifier {
         contextToken: context.token,
       );
     }
+    _resumePausedRun();
     notifyListeners();
   }
 
@@ -146,6 +197,7 @@ final class GuideController extends ChangeNotifier {
   void invalidateAuthority(Object authorityToken) {
     if (!identical(_context?.authorityToken, authorityToken) &&
         !identical(_pending?.authority, authorityToken) &&
+        !identical(_pausedRun?.$2.authorityToken, authorityToken) &&
         !identical(_binding?.authorityToken, authorityToken)) {
       return;
     }
@@ -153,11 +205,13 @@ final class GuideController extends ChangeNotifier {
     _binding = null;
     _context = null;
     _active = null;
+    _pausedRun = null;
     _pending = null;
     notifyListeners();
   }
 
   void start(String guideId, {bool restart = false}) {
+    _cancelNavigation();
     if (!_ready || _context == null) return;
     final variant = audience.variants[guideId];
     if (variant == null) return;
@@ -167,7 +221,6 @@ final class GuideController extends ChangeNotifier {
     } on ArgumentError {
       return;
     }
-    _cancelNavigation();
     final saved = _entry(guideId, variant);
     var index = 0;
     if (!restart && saved?.stepId != null) {
@@ -370,8 +423,14 @@ final class GuideController extends ChangeNotifier {
   }
 
   void setPaused(bool paused) {
-    if (paused) _cancelNavigation();
+    if (paused && !_paused) {
+      _cancelNavigation();
+      if (_active != null && _context != null) {
+        _pausedRun = (_active!, _context!);
+      }
+    }
     _paused = paused;
+    if (!paused) _resumePausedRun();
     notifyListeners();
   }
 

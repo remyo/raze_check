@@ -3,6 +3,8 @@ import 'package:raze_check_core/raze_check_core.dart';
 import '../host/check_services.dart';
 import '../dashboard/staff_home_screen.dart';
 import '../recovery/recovery_shared.dart';
+import '../guides/guide_target.dart';
+import '../guides/guide_invitation.dart';
 
 class AttendanceReportScreen extends StatefulWidget {
   const AttendanceReportScreen({
@@ -74,9 +76,18 @@ class _AttendanceReportScreenState
 
   @override
   Widget build(BuildContext context) => frame('Attendance report', [
-    Text(
-      '${widget.company.name} · ${scope == AttendanceScope.personal ? "My records" : "Management"}',
-    ),
+    const GuideInvitation(guideId: 'reports'),
+    if (widget.canExport && widget.personalAllowed)
+      Text(
+        '${widget.company.name} · ${scope == AttendanceScope.personal ? "My records" : "Management"}',
+      )
+    else
+      GuideTarget(
+        id: 'reports-scope',
+        child: Text(
+          '${widget.company.name} · ${scope == AttendanceScope.personal ? "My records" : "Management"}',
+        ),
+      ),
     Text(
       'Filter by current effective punch date · ${widget.company.timeZoneId}',
     ),
@@ -84,33 +95,39 @@ class _AttendanceReportScreenState
       'Start and end are inclusive calendar dates. Original and received times remain in the export.',
     ),
     if (widget.canExport && widget.personalAllowed)
-      DropdownButtonFormField<AttendanceScope>(
-        initialValue: scope,
-        decoration: const InputDecoration(labelText: 'Report scope'),
-        items: const [
-          DropdownMenuItem(
-            value: AttendanceScope.personal,
-            child: Text('My attendance'),
-          ),
-          DropdownMenuItem(
-            value: AttendanceScope.management,
-            child: Text('Company attendance'),
-          ),
-        ],
-        onChanged: busy
-            ? null
-            : (value) => setState(() {
-                scope = value!;
-                report = null;
-              }),
+      GuideTarget(
+        id: 'reports-scope',
+        child: DropdownButtonFormField<AttendanceScope>(
+          initialValue: scope,
+          decoration: const InputDecoration(labelText: 'Report scope'),
+          items: const [
+            DropdownMenuItem(
+              value: AttendanceScope.personal,
+              child: Text('My attendance'),
+            ),
+            DropdownMenuItem(
+              value: AttendanceScope.management,
+              child: Text('Company attendance'),
+            ),
+          ],
+          onChanged: busy
+              ? null
+              : (value) => setState(() {
+                  scope = value!;
+                  report = null;
+                }),
+        ),
       ),
     const SizedBox(height: 16),
-    TextField(
-      controller: start,
-      onChanged: (_) => setState(() => report = null),
-      keyboardType: TextInputType.datetime,
-      decoration: const InputDecoration(labelText: 'Start date (YYYY-MM-DD)'),
-      enabled: !busy,
+    GuideTarget(
+      id: 'reports-dates',
+      child: TextField(
+        controller: start,
+        onChanged: (_) => setState(() => report = null),
+        keyboardType: TextInputType.datetime,
+        decoration: const InputDecoration(labelText: 'Start date (YYYY-MM-DD)'),
+        enabled: !busy,
+      ),
     ),
     const SizedBox(height: 16),
     TextField(
@@ -137,16 +154,19 @@ class _AttendanceReportScreenState
       const Text(
         'The export is a consistent snapshot. Regenerate to include later changes.',
       ),
-      button('Share CSV', () async {
-        final outcome = await widget.services.shareReport(report!, guard);
-        if (mounted) {
-          setState(
-            () => message = outcome == ShareOutcome.opened
-                ? 'Share sheet opened. External delivery is not confirmed.'
-                : 'Sharing did not confirm an external copy. Retry when available.',
-          );
-        }
-      }),
+      GuideTarget(
+        id: 'reports-csv',
+        child: button('Share CSV', () async {
+          final outcome = await widget.services.shareReport(report!, guard);
+          if (mounted) {
+            setState(
+              () => message = outcome == ShareOutcome.opened
+                  ? 'Share sheet opened. External delivery is not confirmed.'
+                  : 'Sharing did not confirm an external copy. Retry when available.',
+            );
+          }
+        }),
+      ),
       for (final item in report!.rows.take(25))
         ListTile(
           title: Text(

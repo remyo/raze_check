@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:raze_check_core/raze_check_core.dart';
+import '../guides/guide_target.dart';
 
 class OperatorAccessScreen extends StatefulWidget {
   const OperatorAccessScreen({
@@ -57,9 +58,12 @@ class _OperatorAccessScreenState extends State<OperatorAccessScreen> {
                   }
                 }),
         ),
-      FilledButton(
-        onPressed: widget.busy ? null : () => widget.onGrant(_caps),
-        child: const Text('Save capabilities'),
+      GuideTarget(
+        id: 'team-capabilities',
+        child: FilledButton(
+          onPressed: widget.busy ? null : () => widget.onGrant(_caps),
+          child: const Text('Save capabilities'),
+        ),
       ),
       TextField(
         controller: _pass,
@@ -77,21 +81,24 @@ class _OperatorAccessScreenState extends State<OperatorAccessScreen> {
       ),
       if (_validation != null) Text(_validation!),
       if (widget.error != null) Text(widget.error!),
-      FilledButton(
-        onPressed: widget.busy
-            ? null
-            : () {
-                if (_pass.text.runes.length < 12 ||
-                    _pass.text != _confirmation.text) {
-                  setState(
-                    () => _validation =
-                        'Use at least 12 characters and matching confirmation.',
-                  );
-                  return;
-                }
-                widget.onActivate(_pass.text);
-              },
-        child: const Text('Activate operator credential'),
+      GuideTarget(
+        id: 'team-credential',
+        child: FilledButton(
+          onPressed: widget.busy
+              ? null
+              : () {
+                  if (_pass.text.runes.length < 12 ||
+                      _pass.text != _confirmation.text) {
+                    setState(
+                      () => _validation =
+                          'Use at least 12 characters and matching confirmation.',
+                    );
+                    return;
+                  }
+                  widget.onActivate(_pass.text);
+                },
+          child: const Text('Activate operator credential'),
+        ),
       ),
       TextButton(
         onPressed: widget.onCancel,

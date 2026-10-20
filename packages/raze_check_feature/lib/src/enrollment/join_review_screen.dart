@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:raze_check_core/raze_check_core.dart';
+import '../guides/guide_target.dart';
 
 class JoinReviewScreen extends StatelessWidget {
   const JoinReviewScreen({
@@ -49,9 +50,12 @@ class JoinReviewScreen extends StatelessWidget {
           const Text(
             'As owner, confirm this is the same person. Their existing employee ID will be retained.',
           ),
-        FilledButton(
-          onPressed: busy ? null : onApprove,
-          child: const Text('Approve and send membership'),
+        GuideTarget(
+          id: 'membership-approve',
+          child: FilledButton(
+            onPressed: busy ? null : onApprove,
+            child: const Text('Approve and send membership'),
+          ),
         ),
       ],
     );
