@@ -33,6 +33,9 @@ class _GuideLibraryScreenState extends State<GuideLibraryScreen> {
               padding: const EdgeInsets.all(16),
               children: [
                 const Text('Guide progress is shared on this device.'),
+                const Text(
+                  'Guides follow your current screen. For backup and device recovery guides, open Backup / recovery and use Settings on the relevant page.',
+                ),
                 if (controller.sessionOnly)
                   const Padding(
                     padding: EdgeInsets.only(top: 8),

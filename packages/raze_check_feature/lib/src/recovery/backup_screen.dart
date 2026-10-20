@@ -2,6 +2,8 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:raze_check_core/raze_check_core.dart';
 import 'restore_review_screen.dart';
+import '../guides/recovery_guide_bindings.dart';
+import '../guides/guide_target.dart';
 
 String archiveError(Object error) => error is CheckException
     ? switch (error.code) {
@@ -59,6 +61,54 @@ class _BackupScreenState extends State<BackupScreen>
   String? _selected, _error, _message;
   ArchiveDescriptor? _last;
   bool _busy = false, _hidden = false;
+  BuildContext? _guideSource;
+  Membership? _guideMember;
+  Future<void> _validateGuide() async {
+    final selection = _selected, member = _guideMember;
+    void check() {
+      if (!mounted ||
+          _hidden ||
+          selection != _selected ||
+          !identical(member, _guideMember)) {
+        throw StateError('Expired backup scope');
+      }
+      if (widget.identity.requireActor(widget.session).restrictedCompanyId !=
+          null) {
+        throw const CheckException(CheckError.unauthorized);
+      }
+    }
+
+    check();
+    final scope = _scopes[selection];
+    if (scope is CompanyScope) {
+      final current = await widget.companies?.membership(
+        widget.session,
+        scope.companyId,
+      );
+      check();
+      if (current?.owner != true ||
+          current?.active != true ||
+          !sameRecoveryMembership(member, current)) {
+        throw const CheckException(CheckError.unauthorized);
+      }
+    }
+  }
+
+  Future<void> _select(String? value) async {
+    setState(() {
+      _selected = value;
+      _guideMember = null;
+    });
+    final scope = _scopes[value];
+    if (scope is CompanyScope) {
+      final member = await widget.companies?.membership(
+        widget.session,
+        scope.companyId,
+      );
+      if (mounted && _selected == value) setState(() => _guideMember = member);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -153,15 +203,15 @@ class _BackupScreenState extends State<BackupScreen>
     if (!mounted) return;
     final selected = preview;
     try {
-      await Navigator.of(context).push<void>(
-        MaterialPageRoute(
-          builder: (_) => RestoreReviewScreen(
-            identity: widget.identity,
-            session: widget.session,
-            service: widget.restores,
-            preview: selected,
-          ),
+      await openRecoveryPage(
+        _guideSource ?? context,
+        RestoreReviewScreen(
+          identity: widget.identity,
+          session: widget.session,
+          service: widget.restores,
+          preview: selected,
         ),
+        'restore-review',
       );
     } finally {
       await widget.restores.discard(selected);
@@ -181,119 +231,180 @@ class _BackupScreenState extends State<BackupScreen>
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Backup and restore')),
-    body: _hidden
-        ? const Center(child: Text('Protected backup view'))
-        : SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Encrypted backups preserve records and verification history. Restored profiles and companies require separate activation. Local device keys and operator sign-in credentials require fresh setup.',
-                ),
-                if (_scopes.isNotEmpty)
-                  DropdownButton<String>(
-                    isExpanded: true,
-                    value: _selected,
-                    items: [
-                      for (final label in _scopes.keys)
-                        DropdownMenuItem(
-                          value: label,
-                          child: Text(label, overflow: TextOverflow.ellipsis),
+  Widget build(BuildContext context) {
+    bool restricted = true;
+    try {
+      restricted =
+          widget.identity.requireActor(widget.session).restrictedCompanyId !=
+          null;
+    } catch (_) {}
+    return RecoveryGuideScene(
+      identity: (
+        widget.session,
+        _selected,
+        _guideMember,
+        _last,
+        _hidden,
+        restricted,
+      ),
+      audience: recoveryGuideAudience(
+        restrictedOperator: restricted,
+        owner:
+            _scopes[_selected] is CompanyScope &&
+            _guideMember?.owner == true &&
+            _guideMember?.active == true,
+        canExportStaffRecovery: false,
+        recoveryVariant: '',
+      ),
+      validate: _validateGuide,
+      guideId: 'backup',
+      child: Builder(
+        builder: (source) {
+          _guideSource = source;
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('Backup and restore'),
+              actions: const [RecoveryGuideSettings()],
+            ),
+            body: _hidden
+                ? const Center(child: Text('Protected backup view'))
+                : SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const RecoveryGuideInvitation(guideId: 'backup'),
+                        const Text(
+                          'Encrypted backups preserve records and verification history. Restored profiles and companies require separate activation. Local device keys and operator sign-in credentials require fresh setup.',
                         ),
-                    ],
-                    onChanged: _busy
-                        ? null
-                        : (v) => setState(() => _selected = v),
-                  ),
-                TextField(
-                  key: const Key('archive-passphrase'),
-                  controller: _pass,
-                  obscureText: true,
-                  enableSuggestions: false,
-                  autocorrect: false,
-                  decoration: const InputDecoration(
-                    labelText: 'Backup passphrase (12+ characters)',
-                  ),
-                ),
-                TextField(
-                  key: const Key('archive-confirm'),
-                  controller: _confirm,
-                  obscureText: true,
-                  enableSuggestions: false,
-                  autocorrect: false,
-                  decoration: const InputDecoration(
-                    labelText: 'Confirm passphrase for a new backup',
-                  ),
-                ),
-                const Text(
-                  'Keep this passphrase separately. It is not saved with the backup.',
-                ),
-                FilledButton(
-                  onPressed: _busy ? null : _create,
-                  child: const Text('Create encrypted backup'),
-                ),
-                OutlinedButton(
-                  onPressed: _busy ? null : _inspect,
-                  child: const Text('Choose backup to inspect'),
-                ),
-                if (_busy) const LinearProgressIndicator(),
-                if (_error != null)
-                  Text(_error!, key: const Key('archive-error')),
-                if (_message != null) Text(_message!),
-                if (_last case final last?) ...[
-                  Text(
-                    'Created in this app: ${DateTime.fromMillisecondsSinceEpoch(last.createdUtcMs).toLocal()}',
-                  ),
-                  Text(widget.backups.storageDescription),
-                  const Text(
-                    'An internal backup will not survive uninstall. Save a copy outside this app.',
-                  ),
-                  Text(
-                    last.externalCopyConfirmed
-                        ? 'External saved copy confirmed by you.'
-                        : 'No external saved copy has been confirmed.',
-                  ),
-                  OutlinedButton(
-                    onPressed: _busy
-                        ? null
-                        : () => _run(() async {
-                            final bytes = await widget.backups.shareBytes(
-                              widget.session,
-                              last.artifactId,
-                            );
-                            final result = await widget.shareArchive(
-                              bytes,
-                              _guard,
-                            );
-                            await _guard();
-                            setState(
-                              () => _message = result == ShareOutcome.opened
-                                  ? 'Share sheet opened. Verify your saved file before confirming an external copy.'
-                                  : 'No external save confirmed.',
-                            );
-                          }),
-                    child: const Text('Save or share encrypted backup'),
-                  ),
-                  TextButton(
-                    onPressed: _busy
-                        ? null
-                        : () => _run(() async {
-                            await widget.backups.confirmExternalCopy(
-                              widget.session,
-                              last.artifactId,
-                            );
-                            await _load();
-                          }),
-                    child: const Text(
-                      'I verified a saved copy outside this app',
+                        if (_scopes.isNotEmpty)
+                          GuideTarget(
+                            id: 'backup-scope',
+                            child: DropdownButton<String>(
+                              isExpanded: true,
+                              value: _selected,
+                              items: [
+                                for (final label in _scopes.keys)
+                                  DropdownMenuItem(
+                                    value: label,
+                                    child: Text(
+                                      label,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                              ],
+                              onChanged: _busy ? null : _select,
+                            ),
+                          ),
+                        GuideTarget(
+                          id: 'backup-passphrase',
+                          child: TextField(
+                            key: const Key('archive-passphrase'),
+                            controller: _pass,
+                            obscureText: true,
+                            enableSuggestions: false,
+                            autocorrect: false,
+                            decoration: const InputDecoration(
+                              labelText: 'Backup passphrase (12+ characters)',
+                            ),
+                          ),
+                        ),
+                        TextField(
+                          key: const Key('archive-confirm'),
+                          controller: _confirm,
+                          obscureText: true,
+                          enableSuggestions: false,
+                          autocorrect: false,
+                          decoration: const InputDecoration(
+                            labelText: 'Confirm passphrase for a new backup',
+                          ),
+                        ),
+                        const Text(
+                          'Keep this passphrase separately. It is not saved with the backup.',
+                        ),
+                        GuideTarget(
+                          id: 'backup-create',
+                          child: FilledButton(
+                            onPressed: _busy ? null : _create,
+                            child: const Text('Create encrypted backup'),
+                          ),
+                        ),
+                        GuideTarget(
+                          id: 'backup-restore',
+                          child: OutlinedButton(
+                            onPressed: _busy ? null : _inspect,
+                            child: const Text('Choose backup to inspect'),
+                          ),
+                        ),
+                        if (_busy) const LinearProgressIndicator(),
+                        if (_error != null)
+                          Text(_error!, key: const Key('archive-error')),
+                        if (_message != null) Text(_message!),
+                        if (_last case final last?) ...[
+                          Text(
+                            'Created in this app: ${DateTime.fromMillisecondsSinceEpoch(last.createdUtcMs).toLocal()}',
+                          ),
+                          Text(widget.backups.storageDescription),
+                          const Text(
+                            'An internal backup will not survive uninstall. Save a copy outside this app.',
+                          ),
+                          Text(
+                            last.externalCopyConfirmed
+                                ? 'External saved copy confirmed by you.'
+                                : 'No external saved copy has been confirmed.',
+                          ),
+                          GuideTarget(
+                            id: 'backup-external',
+                            child: OutlinedButton(
+                              onPressed: _busy
+                                  ? null
+                                  : () => _run(() async {
+                                      final bytes = await widget.backups
+                                          .shareBytes(
+                                            widget.session,
+                                            last.artifactId,
+                                          );
+                                      final result = await widget.shareArchive(
+                                        bytes,
+                                        _guard,
+                                      );
+                                      await _guard();
+                                      setState(
+                                        () => _message =
+                                            result == ShareOutcome.opened
+                                            ? 'Share sheet opened. Verify your saved file before confirming an external copy.'
+                                            : 'No external save confirmed.',
+                                      );
+                                    }),
+                              child: const Text(
+                                'Save or share encrypted backup',
+                              ),
+                            ),
+                          ),
+                          GuideTarget(
+                            id: 'backup-verify',
+                            child: TextButton(
+                              onPressed: _busy
+                                  ? null
+                                  : () => _run(() async {
+                                      await widget.backups.confirmExternalCopy(
+                                        widget.session,
+                                        last.artifactId,
+                                      );
+                                      await _load();
+                                    }),
+                              child: const Text(
+                                'I verified a saved copy outside this app',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-                ],
-              ],
-            ),
-          ),
-  );
+          );
+        },
+      ),
+    );
+  }
 }

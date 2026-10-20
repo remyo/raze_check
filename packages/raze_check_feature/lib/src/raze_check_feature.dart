@@ -4,6 +4,7 @@ import 'package:raze_check_core/raze_check_core.dart';
 import 'guides/guide_catalog.dart';
 import 'guides/guide_controller.dart';
 import 'guides/guide_scope.dart';
+import 'guides/recovery_guide_bindings.dart';
 import 'host/check_services.dart';
 import 'host/check_feature_host.dart';
 import 'profile/profile_gate.dart';
@@ -67,8 +68,8 @@ class _RazeCheckFeatureState extends State<RazeCheckFeature>
     s.identity.requireActor(session);
     final context = gate.currentState?.routingContext;
     if (context == null) return;
-    Future<void> backup() => widget.host.open(
-      context,
+    Future<void> backup(BuildContext source) => openRecoveryPage(
+      source,
       BackupScreen(
         identity: s.identity,
         session: session,
@@ -84,20 +85,26 @@ class _RazeCheckFeatureState extends State<RazeCheckFeature>
     );
     await widget.host.open(
       context,
-      RecoveryWorkspace(
-        identity: s.identity,
-        recoveryIdentity: s.recoveryIdentity,
-        session: session,
-        companies: s.companies,
-        enrollment: s.enrollment,
-        replacement: s.replacement,
-        handover: s.handover,
-        history: s.history,
-        backups: s.backups,
-        staffBackups: s.staffBackups,
-        restores: s.restores,
-        files: s.files,
-        openBackup: backup,
+      RecoveryGuideRoutes(
+        host: widget.host,
+        openSettings: (source) =>
+            gate.currentState?.openRecoverySettings(source),
+        child: RecoveryWorkspace(
+          identity: s.identity,
+          recoveryIdentity: s.recoveryIdentity,
+          session: session,
+          companies: s.companies,
+          enrollment: s.enrollment,
+          replacement: s.replacement,
+          handover: s.handover,
+          history: s.history,
+          backups: s.backups,
+          staffBackups: s.staffBackups,
+          restores: s.restores,
+          files: s.files,
+          openBackup: () => backup(context),
+          openBackupFrom: backup,
+        ),
       ),
       'recovery',
     );

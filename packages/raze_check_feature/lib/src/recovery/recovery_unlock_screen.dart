@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:raze_check_core/raze_check_core.dart';
 import 'recovery_shared.dart';
+import '../guides/guide_target.dart';
 
 class RecoveryUnlockScreen extends StatefulWidget {
   const RecoveryUnlockScreen({
@@ -38,6 +39,19 @@ class _RecoveryUnlockState extends RecoveryState<RecoveryUnlockScreen> {
       confirm = TextEditingController(),
       archivePass = TextEditingController();
   bool consent = false, missing = false, activated = false;
+  bool lostSource = false;
+  @override
+  String get recoveryVariant => lostSource ? 'owner-recovery' : 'owner-target';
+  @override
+  Object get recoverySceneIdentity => (
+    session,
+    recoveryVariant,
+    candidate,
+    preview,
+    transfer,
+    activated,
+    hidden,
+  );
   bool continuation = false;
   RecoveryIdentityCandidate? candidate;
   SignedMessage? request, transfer, ack;
@@ -136,6 +150,23 @@ class _RecoveryUnlockState extends RecoveryState<RecoveryUnlockScreen> {
 
   @override
   Widget build(BuildContext context) => frame('Activate owner on this device', [
+    GuideTarget(
+      id: 'new-device-path',
+      child: SegmentedButton<bool>(
+        segments: const [
+          ButtonSegment(value: false, label: Text('Source device available')),
+          ButtonSegment(value: true, label: Text('Source device lost')),
+        ],
+        selected: {lostSource},
+        onSelectionChanged: busy
+            ? null
+            : (values) => setState(() => lostSource = values.single),
+      ),
+    ),
+    if (lostSource)
+      const Text(
+        'Lost-source recovery requires a usable company backup. Inspect your real backup to continue; guidance cannot recreate missing records.',
+      ),
     const Text(
       'Use this for the same owner on a replacement device. Enter public identifiers from the source device, or inspect your company recovery backup first. Ordinary login does not restore offline data.',
     ),

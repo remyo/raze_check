@@ -102,12 +102,14 @@ class CheckProfileGateState extends State<CheckProfileGate>
   Future<void> _openGuidePage(
     BuildContext source,
     WidgetBuilder builder,
-    String name,
-  ) async {
-    final origin =
-        _guides?.currentContext ??
-        GuideScene.maybeContextOf(source) ??
-        _guideContext;
+    String name, {
+    bool sourceOnly = false,
+  }) async {
+    final origin = sourceOnly
+        ? GuideScene.maybeContextOf(source)
+        : _guides?.currentContext ??
+              GuideScene.maybeContextOf(source) ??
+              _guideContext;
     if (origin == null) return;
     final generation = _lifetime.generation;
     try {
@@ -161,7 +163,10 @@ class CheckProfileGateState extends State<CheckProfileGate>
     await host.open(source, page, name, guideLayer: false);
   }
 
-  void _settings(BuildContext source) {
+  void openRecoverySettings(BuildContext source) =>
+      _settings(source, sourceOnly: true);
+
+  void _settings(BuildContext source, {bool sourceOnly = false}) {
     _openGuidePage(
       source,
       (settingsContext) => SettingsScreen(
@@ -170,10 +175,12 @@ class CheckProfileGateState extends State<CheckProfileGate>
             settingsContext,
             (_) => GuideLibraryScreen(brandBuilder: widget.host?.iconBuilder),
             'help-guides',
+            sourceOnly: sourceOnly,
           );
         },
       ),
       'settings',
+      sourceOnly: sourceOnly,
     );
   }
 

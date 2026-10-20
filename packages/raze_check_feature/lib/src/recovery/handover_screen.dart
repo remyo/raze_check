@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:raze_check_core/raze_check_core.dart';
 import 'recovery_shared.dart';
+import '../guides/recovery_guide_bindings.dart';
+import '../guides/guide_target.dart';
 
 class HandoverScreen extends StatefulWidget {
   const HandoverScreen({
@@ -11,6 +13,7 @@ class HandoverScreen extends StatefulWidget {
     required this.enrollment,
     required this.service,
     required this.files,
+    this.companies,
   });
   final IdentityService identity;
   final SessionHandle session;
@@ -18,6 +21,7 @@ class HandoverScreen extends StatefulWidget {
   final EnrollmentService enrollment;
   final HandoverService service;
   final RecoveryFiles files;
+  final CompanyService? companies;
   @override
   State<HandoverScreen> createState() => _HandoverScreenState();
 }
@@ -30,6 +34,32 @@ class _HandoverScreenState extends RecoveryState<HandoverScreen> {
   final pass = TextEditingController(), confirm = TextEditingController();
   VerifiedMessage? request;
   HandoverOffer? offer;
+  @override
+  String get recoveryVariant => 'owner-source';
+  @override
+  bool get guideOwner =>
+      _guideMember?.owner == true && _guideMember?.active == true;
+  Membership? _guideMember;
+  @override
+  Future<void> validateGuide() async {
+    await super.validateGuide();
+    final member = _guideMember;
+    final current = await widget.companies?.membership(
+      session,
+      widget.company.id,
+    );
+    await super.validateGuide();
+    if (current?.owner != true ||
+        current?.active != true ||
+        !identical(_guideMember, member) ||
+        !sameRecoveryMembership(member, current)) {
+      throw const CheckException(CheckError.unauthorized);
+    }
+  }
+
+  @override
+  Object get recoverySceneIdentity =>
+      (session, widget.company.id, _guideMember, request, offer, hidden);
   bool samePerson = false;
   final operation = SecureIds().next();
   CommandContext contextFor(String id) => CommandContext(
@@ -43,6 +73,11 @@ class _HandoverScreenState extends RecoveryState<HandoverScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       run(() async {
+        _guideMember = await widget.companies?.membership(
+          session,
+          widget.company.id,
+        );
+        await guard();
         offer = await widget.service.pendingOffer(session, widget.company.id);
         if (mounted) setState(() {});
       });
@@ -92,8 +127,11 @@ class _HandoverScreenState extends RecoveryState<HandoverScreen> {
       const Text(
         'This moves the same person to a fresh installation. It does not transfer company ownership.',
       ),
-      SelectableText(
-        'Company ID: ${widget.company.id}\nOriginal person ID: ${widget.company.creationPersonId}\nRoot fingerprint: ${widget.company.rootFingerprint}',
+      GuideTarget(
+        id: 'new-device-identity',
+        child: SelectableText(
+          'Company ID: ${widget.company.id}\nOriginal person ID: ${widget.company.creationPersonId}\nRoot fingerprint: ${widget.company.rootFingerprint}',
+        ),
       ),
       const Text(
         'Copy these public identifiers to the new device. Keep both devices and your archive until the new device verifies activation.',

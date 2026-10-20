@@ -5,6 +5,7 @@ import 'replacement_request_screen.dart';
 import 'recovery_unlock_screen.dart';
 import 'handover_screen.dart';
 import 'authority_history_screen.dart';
+import '../guides/recovery_guide_bindings.dart';
 
 class RecoveryWorkspace extends StatefulWidget {
   const RecoveryWorkspace({
@@ -22,6 +23,7 @@ class RecoveryWorkspace extends StatefulWidget {
     required this.restores,
     required this.files,
     required this.openBackup,
+    this.openBackupFrom,
   });
   final IdentityService identity;
   final RecoveryIdentityService recoveryIdentity;
@@ -36,6 +38,7 @@ class RecoveryWorkspace extends StatefulWidget {
   final RestoreService restores;
   final RecoveryFiles files;
   final Future<void> Function() openBackup;
+  final Future<void> Function(BuildContext)? openBackupFrom;
   @override
   State<RecoveryWorkspace> createState() => _RecoveryWorkspaceState();
 }
@@ -49,6 +52,29 @@ class _RecoveryWorkspaceState extends RecoveryState<RecoveryWorkspace> {
   Company? selected;
   Membership? member;
   bool restricted = true;
+  @override
+  String get recoveryVariant => 'staff-replacement';
+  @override
+  bool get guideOwner => member?.owner == true && member?.active == true;
+  @override
+  bool get guideCanExport => recoveryExportAllowed(member);
+  @override
+  Object get recoverySceneIdentity =>
+      (session, selected, member, restricted, hidden);
+  @override
+  Future<void> validateGuide() async {
+    await super.validateGuide();
+    final company = selected, captured = member;
+    if (company == null) return;
+    final current = await widget.companies.membership(session, company.id);
+    await super.validateGuide();
+    if (!identical(selected, company) ||
+        !identical(member, captured) ||
+        !sameRecoveryMembership(captured, current)) {
+      throw const CheckException(CheckError.unauthorized);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -68,15 +94,18 @@ class _RecoveryWorkspaceState extends RecoveryState<RecoveryWorkspace> {
   Future<void> open(Widget child) async {
     await guard();
     if (!mounted) return;
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => child));
+    await openRecoveryPage(guideSource ?? context, child, 'recovery-detail');
   }
 
   @override
   Widget build(BuildContext context) => frame('Backup and device recovery', [
     if (!restricted) ...[
-      button('Encrypted backup and passive restore', widget.openBackup),
+      button(
+        'Encrypted backup and passive restore',
+        () =>
+            widget.openBackupFrom?.call(guideSource ?? context) ??
+            widget.openBackup(),
+      ),
       button(
         'Recover staff identity on this device',
         () async => open(
@@ -119,8 +148,13 @@ class _RecoveryWorkspaceState extends RecoveryState<RecoveryWorkspace> {
         onChanged: busy
             ? null
             : (c) => run(() async {
+                setState(() {
+                  selected = c;
+                  member = null;
+                });
                 final m = await widget.companies.membership(session, c!.id);
-                if (mounted) {
+                await guard();
+                if (mounted && identical(selected, c)) {
                   setState(() {
                     selected = c;
                     member = m;
@@ -186,6 +220,7 @@ class _RecoveryWorkspaceState extends RecoveryState<RecoveryWorkspace> {
               company: selected!,
               enrollment: widget.enrollment,
               service: widget.handover,
+              companies: widget.companies,
               files: widget.files,
             ),
           ),

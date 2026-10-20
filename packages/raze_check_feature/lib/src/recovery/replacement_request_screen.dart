@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:raze_check_core/raze_check_core.dart';
 import 'recovery_shared.dart';
+import '../guides/recovery_guide_bindings.dart';
 
 class ReplacementRequestScreen extends StatefulWidget {
   const ReplacementRequestScreen({
@@ -39,6 +40,11 @@ class _ReplacementRequestState extends RecoveryState<ReplacementRequestScreen> {
       archivePass = TextEditingController();
   SignedMessage? invitation, request;
   Uint8List? invitationBytes;
+  @override
+  String get recoveryVariant => 'staff-replacement';
+  @override
+  Object get recoverySceneIdentity =>
+      (session, invitation, candidate, request, activated, hidden);
   String? fingerprint;
   bool consent = false, pinned = false, activated = false;
   InvitationCandidate? candidateRoot;
@@ -353,6 +359,36 @@ class _ReplacementApprovalState
   StaffRecord? selected;
   VerifiedMessage? request;
   SignedMessage? grant;
+  @override
+  String get recoveryVariant => 'staff-replacement';
+  @override
+  bool get guideCanExport => exportAllowed;
+  Membership? _guideMember;
+  @override
+  Future<void> validateGuide() async {
+    await super.validateGuide();
+    final captured = _guideMember;
+    final current = await widget.companies.membership(
+      session,
+      widget.company.id,
+    );
+    await super.validateGuide();
+    if (!sameRecoveryMembership(captured, current) ||
+        !recoveryExportAllowed(current)) {
+      throw const CheckException(CheckError.unauthorized);
+    }
+  }
+
+  @override
+  Object get recoverySceneIdentity => (
+    session,
+    widget.company.id,
+    selected,
+    request,
+    grant,
+    exportAllowed,
+    hidden,
+  );
   bool confirmed = false, exportAllowed = false;
   final pass = TextEditingController(), confirm = TextEditingController();
   @override
@@ -365,6 +401,7 @@ class _ReplacementApprovalState
           session,
           widget.company.id,
         );
+        _guideMember = member;
         exportAllowed =
             member != null &&
             AccessPolicy.eligible(member, Capability.manageMemberships) &&

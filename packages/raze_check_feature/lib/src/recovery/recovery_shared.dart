@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:raze_check_core/raze_check_core.dart';
 import 'backup_screen.dart' show archiveError;
+import '../guides/recovery_guide_bindings.dart';
+import '../guides/guide_models.dart';
+import '../guides/guide_target.dart';
 
 final class RecoveryFiles {
   const RecoveryFiles({
@@ -22,6 +25,23 @@ abstract class RecoveryState<T extends StatefulWidget> extends State<T>
   IdentityService get identity;
   SessionHandle get session;
   bool busy = false, hidden = false;
+  BuildContext? guideSource;
+  String? get recoveryVariant => null;
+  Object get recoverySceneIdentity => (session, recoveryVariant, hidden);
+  bool get guideOwner => false;
+  bool get guideCanExport => false;
+  Future<void> validateGuide() async {
+    if (!mounted || hidden) throw const CheckException(CheckError.locked);
+    identity.requireActor(session);
+  }
+
+  GuideAudience get recoveryAudience => recoveryGuideAudience(
+    restrictedOperator:
+        identity.requireActor(session).restrictedCompanyId != null,
+    owner: guideOwner,
+    canExportStaffRecovery: guideCanExport,
+    recoveryVariant: recoveryVariant ?? '',
+  );
   Timer? _expiry;
   String? error, message;
   @override
@@ -138,28 +158,91 @@ abstract class RecoveryState<T extends StatefulWidget> extends State<T>
     String label,
     Future<void> Function() action, {
     bool enabled = true,
-  }) => FilledButton(
-    onPressed: busy || !enabled ? null : () => run(action),
-    child: Text(label),
+    String? guideTarget,
+  }) => GuideTarget(
+    id:
+        guideTarget ??
+        switch (label) {
+          'Recover staff identity on this device' ||
+          'Read company invitation' ||
+          'Read target replacement request' => 'new-device-path',
+          'Create fresh replacement request' ||
+          'Prepare fresh owner installation' ||
+          'Prepare company recovery with current identity' =>
+            'new-device-identity',
+          'Share replacement request' ||
+          'Share target request with source device' ||
+          'Freeze source and prepare handover' ||
+          'Read staff replacement request' => 'new-device-request',
+          'Apply received-record archive' ||
+          'Inspect company recovery or handover archive' ||
+          'Share exact handover archive' ||
+          'Export selected staff recovery archive' => 'new-device-archive',
+          'Receive replacement grant' ||
+          'Receive target acknowledgment' ||
+          'Authorize replacement' => 'new-device-activate',
+          'Verify and activate handover' =>
+            recoveryVariant == 'owner-target' ? 'new-device-activate' : label,
+          'Recover when source device is lost' =>
+            recoveryVariant == 'owner-recovery' ? 'new-device-activate' : label,
+          'Share activation acknowledgment' => 'new-device-acknowledgment',
+          'Share signed handover offer' => 'new-device-offer',
+          _ => label,
+        },
+    child: FilledButton(
+      onPressed: busy || !enabled ? null : () => run(action),
+      child: Text(label),
+    ),
   );
-  Widget frame(String title, List<Widget> children) => Scaffold(
-    appBar: AppBar(title: Text(title)),
-    body: hidden
-        ? const Center(child: Text('Protected recovery view'))
-        : SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (busy) const LinearProgressIndicator(),
-                if (error != null)
-                  Text(error!, key: const Key('recovery-error')),
-                if (message != null) Text(message!),
-                ...children,
-              ],
-            ),
+  Widget frame(String title, List<Widget> children) {
+    Widget page = Builder(
+      builder: (source) {
+        guideSource = source;
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(title),
+            actions: [
+              if (recoveryVariant != null) const RecoveryGuideSettings(),
+            ],
           ),
-  );
+          body: hidden
+              ? const Center(child: Text('Protected recovery view'))
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (busy) const LinearProgressIndicator(),
+                      if (error != null)
+                        Text(error!, key: const Key('recovery-error')),
+                      if (message != null) Text(message!),
+                      if (recoveryVariant != null)
+                        const RecoveryGuideInvitation(guideId: 'new-device'),
+                      ...children,
+                    ],
+                  ),
+                ),
+        );
+      },
+    );
+    if (recoveryVariant != null) {
+      GuideAudience audience;
+      try {
+        audience = recoveryAudience;
+      } catch (_) {
+        audience = GuideAudience(variants: const {});
+      }
+      page = RecoveryGuideScene(
+        identity: recoverySceneIdentity,
+        audience: audience,
+        validate: validateGuide,
+        guideId: 'new-device',
+        child: page,
+      );
+    }
+    return page;
+  }
+
   void confirmedPassphrase(TextEditingController a, TextEditingController b) {
     if (a.text.runes.length < 12 || a.text != b.text) {
       throw const CheckException(CheckError.wrongSecret);
