@@ -1,0 +1,16 @@
+{
+  "platform": "android",
+  "entrypoint": "integration_test/native_matrix_test.dart",
+  "sourceManifestSha256": "751bcf97b451e4d0ec312ac021a77fe672784dca8ed13b773a2c1e89507cc590",
+  "artifactSha256": "2eaa3b4984558ecb737c7bf8c5111e5b2c3957b20b2c7f07719d7625da4ce58a",
+  "priorOwnedArtifactSha256": "a9ac733406776a5647d34b594f07f57ea22233e84f709c7cc19c4613a638df6f",
+  "keepAppRunning": true,
+  "startedUtc": "2026-10-20T05:16:55.359097+00:00",
+  "exitCode": 0,
+  "endedUtc": "2026-10-20T05:18:58.694069+00:00",
+  "behaviorPasses": 4,
+  "behaviorFailures": 0,
+  "frameworkTeardownPasses": 1,
+  "interactiveSkipped": 0,
+  "failureMeaning": null
+}

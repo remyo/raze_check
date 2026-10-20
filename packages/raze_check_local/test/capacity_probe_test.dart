@@ -8,108 +8,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:raze_check_core/raze_check_core.dart';
 import 'package:raze_check_local/raze_check_local.dart';
 import 'support/acceptance_device.dart';
+import 'support/capacity_cost_probe.dart';
 import 'support/memory_key_store.dart';
-
-final class CostProbe extends QueryInterceptor implements PayloadCipher {
-  CostProbe(this.real);
-  final PayloadCipher real;
-  final metrics = <String, int>{};
-  var active = 0;
-  var activeSealedBytes = 0;
-  void add(String key, int value) =>
-      metrics.update(key, (v) => v + value, ifAbsent: () => value);
-  void maximum(String key, int value) {
-    if (value > (metrics[key] ?? 0)) {
-      metrics[key] = value;
-    }
-  }
-
-  @override
-  Future<List<Map<String, Object?>>> runSelect(
-    QueryExecutor executor,
-    String statement,
-    List<Object?> args,
-  ) async {
-    final rows = await executor.runSelect(statement, args);
-    final family = statement.contains('SELECT r.* FROM stored_rows r')
-        ? 'history'
-        : statement.contains('stored_rows')
-        ? 'stored'
-        : statement.contains('personal_operations')
-        ? 'owners'
-        : statement.contains('revision_journal')
-        ? 'journal'
-        : statement.contains('operation_rows')
-        ? 'operations'
-        : 'other';
-    add('sql.$family.calls', 1);
-    add('sql.$family.rows', rows.length);
-    maximum('sql.$family.maxRows', rows.length);
-    var bodyBytes = 0;
-    for (final row in rows) {
-      for (final value in row.values) {
-        if (value is Uint8List) {
-          bodyBytes += value.length;
-        }
-      }
-    }
-    add('sql.$family.bodyBytes', bodyBytes);
-    maximum('sql.$family.maxBodyBytes', bodyBytes);
-    return rows;
-  }
-
-  @override
-  Future<Uint8List> open({
-    required String scopeId,
-    required String recordId,
-    required int revision,
-    required Uint8List sealed,
-  }) async {
-    active++;
-    activeSealedBytes += sealed.length;
-    maximum('aes.maxConcurrentOpens', active);
-    maximum('aes.maxConcurrentSealedBytes', activeSealedBytes);
-    add('aes.opens', 1);
-    add('aes.sealedBytes', sealed.length);
-    if (recordId.startsWith('record:attendance-state:')) {
-      add('aes.attendanceStateOpens', 1);
-    }
-    if (recordId.startsWith('operation:')) {
-      add('aes.operationOpens', 1);
-    }
-    try {
-      final value = await real.open(
-        scopeId: scopeId,
-        recordId: recordId,
-        revision: revision,
-        sealed: sealed,
-      );
-      add('aes.plainBytes', value.length);
-      maximum('aes.maxSinglePlainBytes', value.length);
-      return value;
-    } finally {
-      active--;
-      activeSealedBytes -= sealed.length;
-    }
-  }
-
-  @override
-  Future<Uint8List> seal({
-    required String scopeId,
-    required String recordId,
-    required int revision,
-    required Uint8List plain,
-  }) async {
-    add('aes.seals', 1);
-    add('aes.sealPlainBytes', plain.length);
-    return real.seal(
-      scopeId: scopeId,
-      recordId: recordId,
-      revision: revision,
-      plain: plain,
-    );
-  }
-}
 
 void main() {
   test(
@@ -148,22 +48,31 @@ void main() {
       final results = <String, Object?>{
         'provenance': provenance,
         'extraDiagnosticStaff': 1,
+        'extraDiagnosticEvents': 3,
+        'claim':
+            'current-source fresh imports on a historical snapshot; not repeated initial imports',
         'phases': <String, Object?>{},
       };
       Future<T> measure<T>(String label, Future<T> Function() action) async {
         probe.metrics.clear();
         final watch = Stopwatch()..start();
-        final result = await action();
-        (results['phases'] as Map)[label] = {
-          'elapsedUs': watch.elapsedMicroseconds,
-          ...probe.metrics,
-          'rssBytes': ProcessInfo.currentRss,
-        };
-        await File('$path/probe-results.json').writeAsString(
-          const JsonEncoder.withIndent('  ').convert(results),
-          flush: true,
-        );
-        return result;
+        try {
+          return await action();
+        } catch (error) {
+          results['failedPhase'] = label;
+          results['failure'] = error.toString();
+          rethrow;
+        } finally {
+          (results['phases'] as Map)[label] = {
+            'elapsedUs': watch.elapsedMicroseconds,
+            ...probe.metrics,
+            'rssBytes': ProcessInfo.currentRss,
+          };
+          await File('$path/probe-results.json').writeAsString(
+            const JsonEncoder.withIndent('  ').convert(results),
+            flush: true,
+          );
+        }
       }
 
       final codec = MessageCodec(),
@@ -213,18 +122,22 @@ void main() {
       );
       final event = SecureIds().next(),
           time = DateTime.utc(2026, 8, 1).millisecondsSinceEpoch;
-      final receipt = codec.encode(
+      Future<Uint8List> attendanceWire(
+        String eventId,
+        String kind,
+        int at,
+      ) async => codec.encode(
         await sign(MessageKind.attendance, [
           company.id,
-          event,
-          time,
+          eventId,
+          at,
           person,
           grant.field<String>('employeeId'),
           grant.field<String>('membershipId'),
           grant.field<int>('membershipRevision'),
           installation,
-          'checkIn',
-          time,
+          kind,
+          at,
           540,
           workplace.payload.field<String>('workplaceId'),
           workplace.payload.field<String>('codeId'),
@@ -233,6 +146,11 @@ void main() {
           ).generationId,
           'staticQr',
         ]),
+      );
+      final receipt = await attendanceWire(
+        event,
+        'checkOut',
+        time + 8 * 3600000,
       );
       final verified = await measure(
         'verify',
@@ -247,15 +165,22 @@ void main() {
         'freshImport',
         () => manager.attendance.importReceipt(context, verified),
       );
-      expect(imported.status, ImportStatus.received);
+      expect(imported.status, ImportStatus.needsReview);
       expect(
-        (results['phases'] as Map)['freshImport']['aes.attendanceStateOpens'],
-        provenance['baselineEvents'],
+        (await manager.attendance.get(
+          manager.session,
+          company.id,
+          event,
+        )).flags,
+        contains('missingCheckIn'),
       );
-      await measure(
+      final originalAck = codec.encode(imported.returnMessage!);
+      final replay = await measure(
         'sameOperationReplay',
         () => manager.attendance.importReceipt(context, verified),
       );
+      expect(replay.status, ImportStatus.alreadyReceived);
+      expect(codec.encode(replay.returnMessage!), orderedEquals(originalAck));
       final duplicate = await measure(
         'newOperationDuplicate',
         () => manager.attendance.importReceipt(
@@ -264,6 +189,77 @@ void main() {
         ),
       );
       expect(duplicate.status, ImportStatus.alreadyReceived);
+      expect(
+        codec.encode(duplicate.returnMessage!),
+        orderedEquals(originalAck),
+      );
+      final lateId = SecureIds().next();
+      final lateWire = await attendanceWire(lateId, 'checkIn', time);
+      final lateVerified = await measure(
+        'verifyLateEndpoint',
+        () => manager.attendance.verifyIncoming(
+          manager.session,
+          company.id,
+          lateWire,
+        ),
+      );
+      final late = await measure(
+        'lateEndpointImport',
+        () => manager.attendance.importReceipt(
+          manager.context(company),
+          lateVerified,
+        ),
+      );
+      expect(late.status, ImportStatus.received);
+      expect(
+        (await manager.attendance.get(
+          manager.session,
+          company.id,
+          event,
+        )).flags,
+        isEmpty,
+      );
+      final repeatedId = SecureIds().next();
+      final repeatedWire = await attendanceWire(
+        repeatedId,
+        'checkIn',
+        time + 3600000,
+      );
+      final repeatedVerified = await measure(
+        'verifyRepeatedCheckIn',
+        () => manager.attendance.verifyIncoming(
+          manager.session,
+          company.id,
+          repeatedWire,
+        ),
+      );
+      final repeated = await measure(
+        'repeatedCheckInImport',
+        () => manager.attendance.importReceipt(
+          manager.context(company),
+          repeatedVerified,
+        ),
+      );
+      expect(repeated.status, ImportStatus.needsReview);
+      expect(
+        (await manager.attendance.get(
+          manager.session,
+          company.id,
+          repeatedId,
+        )).flags,
+        containsAll(['missingCheckOut', 'unexpectedOrder']),
+      );
+      // Privileged test storage oracle; not a manager call to personal getReceipt.
+      for (final entry in {
+        event: receipt,
+        lateId: lateWire,
+        repeatedId: repeatedWire,
+      }.entries) {
+        expect(
+          (await manager.repository.read(company.id, entry.key))!.payload,
+          orderedEquals(entry.value),
+        );
+      }
       final page = await measure(
         'firstHistory100',
         () => manager.queries.historyPage(
@@ -329,7 +325,7 @@ void main() {
       results['maxRssBytes'] = ProcessInfo.maxRss;
       expect(
         results['finalDiagnosticEvents'],
-        (provenance['baselineEvents'] as int) + 1,
+        (provenance['baselineEvents'] as int) + 3,
       );
       await File('${root.path}/probe-results.json').writeAsString(
         const JsonEncoder.withIndent('  ').convert(results),

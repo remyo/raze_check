@@ -10,7 +10,7 @@
 
 **Spec:** [Approved product design](../specs/2026-10-18-attendance-management-design.md) and [approved integration boundaries](../specs/2026-10-19-raze-check-integration-boundaries.md). Read both before execution.
 
-**Status:** Design approved2026-10-19; Tasks1–12 implemented and independently reviewed. Task13 acceptance and final whole-branch review are in progress. The standalone host and reusable packages now exist; Android and iOS remain joint targets. See [current acceptance evidence](../../testing/foundation-acceptance.md) for actual verification and outstanding gates. Original checklists below retain the approved execution plan; they are not a substitute for recorded results.
+**Status:** Design approved2026-10-19; Tasks1–12 implemented and independently reviewed. Task13 measured capacity and current Android acceptance are complete under recorded reconciliation; current iPhone signing/testing and hands-on optical/picker/share checks are user-deferred, and runtime floors remain unverified. The combined source fixes passed independent review; final Task13 evidence/harness delta review remains pending. The standalone host and reusable packages now exist; Android and iOS remain joint targets. See [current acceptance evidence](../../testing/foundation-acceptance.md) for actual verification and outstanding gates. Original checklists below retain the approved execution plan; they are not a substitute for recorded results.
 
 ## Global Constraints
 

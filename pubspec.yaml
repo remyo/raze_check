@@ -21,6 +21,7 @@ dependencies:
   raze_check_feature:
     path: packages/raze_check_feature
 dev_dependencies:
+  cryptography: 2.9.0
   flutter_test:
     sdk: flutter
   integration_test:

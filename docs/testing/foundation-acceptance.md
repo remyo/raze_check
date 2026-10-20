@@ -1,6 +1,6 @@
 # Foundation acceptance evidence
 
-Task13 execution is in progress from approved Task12 baseline `186ab549e3d6a469a61eebf548bbe6f010755b83`. This document will record fresh final commands and outstanding gates; no ready/release claim is made before independent whole-branch review.
+Task13 measured capacity and current Android acceptance are complete under the recorded reconciliation scope. Current physical iPhone signing/testing and hands-on optical/picker/share checks are explicitly deferred by the user; runtime floors remain unverified. Final Task13 delta review is pending. The source chain starts at approved Task12 baseline `186ab549e3d6a469a61eebf548bbe6f010755b83`; this is not an unconditional release or current two-platform parity claim.
 
 ## Reproducible gates
 
@@ -20,11 +20,11 @@ An orphaned encrypted catalog fails closed and cannot bootstrap a setup profile 
 
 ## Evidence retention
 
-[Full-shell captures](screenshots/full-shell-metadata.txt) preserve the accepted Task12 actual Flutter screens and synthetic metadata. [Implementation decisions](implementation-decisions.md) retain all chronological controller rulings and costs, refreshed from the final ledger before cleanup. Huge raw logs, signing details, device selectors, private test seeds and full database files remain in owned local scratch; commit only sanitized commands/results and necessary small synthetic evidence.
+[Full-shell captures](screenshots/full-shell-metadata.txt) preserve the accepted Task12 actual Flutter screens and synthetic metadata. [Implementation decisions](implementation-decisions.md) retain all chronological controller rulings and costs, refreshed from the final ledger before cleanup. Raw logs, signing details, device selectors, private synthetic keys, full databases and source manifests are retained in the ignored `.superpowers/evidence/2026-10-19-raze-check-foundation/` directory. Normal artifacts remain in ignored `build/artifacts/task13-current/`. Preserve these before any managed-worktree removal; only sanitized summaries and small synthetic evidence are tracked.
 
-Final verification/results and limitations will be appended after execution. Physical, build, process and capacity claims remain independent.
+Physical, build, process and capacity claims remain independent. Earlier-source evidence below is followed by the current-source gates and their precise limitations.
 
-## Recorded build and focused-test results
+## Earlier-source build and focused-test results
 
 Flutter3.44.7/Dart3.12.2,2026-10-20; source BASE186ab549e3d6a469a61eebf548bbe6f010755b83 plus Task13 source manifests. The isolated source/build copy contains no user data or historical keychain material.
 
@@ -39,9 +39,9 @@ Flutter3.44.7/Dart3.12.2,2026-10-20; source BASE186ab549e3d6a469a61eebf548bbe6f0
 
 Local signing checked certificate/profile/device compatibility, concrete app/keychain entitlements, unchanged embedded profile and strict signatures. It changed no account, provisioning, trust or keychain settings. Signed app file-manifest SHA256`70955bbe16fa66e18bf0f39b439811cf24f4e0254260ad6a2a255e32d3d6d627`. Local signature checks alone do not prove physical installation or runtime behavior. Source/build-input manifest SHA256`1cd2d2974be63bcf50a3851c87dfb958e23afc18c6a338624ca9f94873ab5ff1`; later host-test braces formatting does not enter these compiled targets.
 
-The first workspace gate stopped on a new test-helper braces lint; the next stopped on formatting of that fix. These were corrected before the third complete gate passed (43 core,159 local plus2explicit opt-in skips,40 feature,9 root tests; formatting and analysis clean). Final verification after subsequent test additions remains pending. The focused scanner test initially stalled because real I/O began in a fake-time continuation; starting the route and continuation inside the real-I/O zone fixed the harness, with a bounded completion check. Drift's multiple-database warning in acceptance setup is expected for independent manager/staff/target paths and executors; reopen awaits the predecessor's close, and teardown closes each device. No blanket warning suppression was added.
+The first workspace gate stopped on a new test-helper braces lint; the next stopped on formatting of that fix. These were corrected before the third complete gate passed (43 core,159 local plus2explicit opt-in skips,40 feature,9 root tests; formatting and analysis clean). Current verification after subsequent source and harness changes is recorded separately below. The focused scanner test initially stalled because real I/O began in a fake-time continuation; starting the route and continuation inside the real-I/O zone fixed the harness, with a bounded completion check. Drift's multiple-database warning in acceptance setup is expected for independent manager/staff/target paths and executors; reopen awaits the predecessor's close, and teardown closes each device. No blanket warning suppression was added.
 
-## Physical execution results
+## Earlier-source physical execution results
 
 On2026-10-20, both newly owned synthetic installations ran the exact prebuilt `foundation_suite_test.dart` through `flutter drive --no-pub --debug --use-application-binary=<retained artifact> --target=integration_test/foundation_suite_test.dart --driver=<explicit integration driver> --test-arguments=--packages=<copy package_config.json> --device-id=<selected physical device> --keep-app-running`. The iPhone app used verified existing local signing assets. Android completed in113s; iPhone49s, both exit0, six behavioral tests plus the framework teardown reported as seven passes, with three interactive cases explicitly skipped. Actual OS secure keys, signed attendance flow, directory-fsync archive create/apply, wrong-password rejection, missing run-owned catalog key preservation and native PNG/JPEG decoding of exact1500-byte signed messages passed. [Small synthetic native artifacts](native-evidence/) retain original receipts and metadata.
 
@@ -51,4 +51,25 @@ Android disposable uninstall/reinstall recovered its actual previously exported2
 
 The user deferred hands-on printed/screen camera positioning and native picker/share interactions. These are unverified by request, not unavailable equipment and not automated passes. Airplane mode was not changed; no offline-radio proof is claimed. Android24/iOS16 floors remain unverified. Both-platform native suite success does not substitute for those separate gates.
 
-**Capacity is still pending.** The uninterrupted real100staff/10,000import run has not yet reached its target or whole-archive assertions. Partial counts and diagnostic probes are measurements, not a capacity pass. Heavy host memory pressure was observed during concurrent native builds; after those completed, further Task13 Flutter builds/probes/tests were held while the baseline continued. Final current-source workspace verification and normal-entrypoint builds remain pending.
+The [capacity engineering gate](capacity.md) is satisfied under the explicitly approved historical/current-source reconciliation: original100non-owner staff/10,000imports actually completed but the old harness exited1 on an incorrect replay assertion; current unfiltered reopening/pages/reports/duplicates/whole archive inspect/apply/exact retention passed, and current fresh signed imports plus detailed counters passed at5,121and10,000original events. This is not a second initial10,000-import run, a phone memory test, or a marketed capacity guarantee.
+
+## Current-source verification after whole-branch fixes
+
+Production commit `33dd2b9d6835c7de657382959683620b397a6dbe` received independent review with all seven Important and six Minor findings addressed. The fresh full workspace gate at this source plus the Task13 root dev dependency declaration for the already-pinned cryptography2.9.0 passed: format207files unchanged, analyzer clean,43core/170local/44feature/9root tests (266 total) and two explicit opt-in capacity skips. Frozen source manifest SHA256`5cf9ee1dbe747f7834f074480af7174b76d475465a743cbae193b28e74b43008`. The initial analyzer failure (integration harness imported cryptography without a root dependency declaration) was corrected without changing a resolved version. Later Task13 harness additions receive their own analysis and actual execution; this earlier gate is not retroactively labeled as including them.
+
+Normal current Android `flutter build apk --debug --no-pub --target lib/main.dart` passed and its APK is preserved separately from integration binaries in ignored `build/artifacts/task13-current/android/raze-check-normal-debug.apk`. SHA256`84476df7f48f5f8511911b225944a56539e7cca6d614da7f9e78e412679395b7`; source manifest`f8eff7a7be03ecce269d7d5f19720a184cf212cfad2a974a45fedfba1d30b001`. Debug artifact size215,625,773bytes is not a release distribution or capacity promise. The pinned cryptography_flutter plugin emits an upstream future Kotlin Gradle compatibility warning; the current build succeeds.
+
+Normal iOS Release config-only preparation passed with explicit `lib/main.dart`, only six standard Flutter defines, and normal branding assets. Neither prior process/lifecycle defines nor private recovery fixture assets remained. The first direct Xcode attempt rejected explicit certificate-hash pinning with automatic signing; the permitted standard Apple Development/selected-team retry reached the concrete account/profile gap described in the [device matrix](device-matrix.md). Both failures are retained; no signed app or installation pass is claimed.
+
+Current Android native coverage combines the unchanged six core behavior passes with four corrected matrix passes; the first matrix harness timing failure is retained rather than erased. [Current native evidence](current-native-evidence/) distinguishes actual behavior tests from framework teardown. Normal Android main.dart is installed and launched without clearing data; all45prior acceptance directory sections remain. The normal first-use screen was visually inspected.
+
+The current normal iOS simulator build passed (Xcode34.6s), preserved under ignored `build/artifacts/task13-current/ios-simulator/Runner.app`; file-manifest SHA256`44563992612305113a050ffd722f046a15c063d7ba34bbb48d15f9105d8c1abc`. It is a simulator artifact, not an iPhone preview. The user explicitly deferred current physical iPhone signing/testing after the selected-team account/profile gap. Earlier actual iPhone results retain their original source/signer provenance and do not close current physical parity.
+
+
+Final whole-workspace verification after all harness changes passed: `tool/verify.sh` exited0 with210files unchanged, clean analysis,43core +170local +44feature +9host =266tests and3explicit opt-in capacity skips. Package elapsed times were1s/7m09s/2m12s/27s. The separate actual CopyA and both diagnostic capacity runs passed as recorded above; skipped opt-in tests are not counted as those passes. Final independent Task13 delta review remains pending.
+
+## Source and artifact correspondence
+
+Production remains at `33dd2b9d6835c7de657382959683620b397a6dbe`. The normal Android APK and first current Android suite use manifest `f8eff7a7be03ecce269d7d5f19720a184cf212cfad2a974a45fedfba1d30b001`. The corrected Android matrix, current capacity runs and normal iOS simulator use `751bcf97b451e4d0ec312ac021a77fe672784dca8ed13b773a2c1e89507cc590`. The two snapshots differ only in test harnesses and documentation; normal app inputs are unchanged.
+
+The final whole-workspace verifier uses the frozen 403-file manifest `8b0f20aeaf7b729471a3003009c34aaa7b0af290efe7857991ac78368b842106`. Its code matches the corrected matrix/capacity snapshot; differences are documentation and evidence. Final prose edits are reconciled separately from this frozen verification snapshot. Full file manifests and independent controller comparisons are retained privately, without treating a later documentation hash as an earlier artifact's build source.

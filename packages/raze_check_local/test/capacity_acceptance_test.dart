@@ -275,7 +275,7 @@ void main() {
           manager.context(company, firstOperation),
           verified,
         );
-        expect(same.status, ImportStatus.received);
+        expect(same.status, ImportStatus.alreadyReceived);
         metrics['sameOperationReplayMs'] = duplicate.elapsedMilliseconds;
         duplicate.reset();
         final fresh = await manager.attendance.importReceipt(

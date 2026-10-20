@@ -1,0 +1,17 @@
+{
+  "platform": "android",
+  "entrypoint": "integration_test/foundation_suite_test.dart",
+  "sourceManifestSha256": "f8eff7a7be03ecce269d7d5f19720a184cf212cfad2a974a45fedfba1d30b001",
+  "artifactSha256": "a9ac733406776a5647d34b594f07f57ea22233e84f709c7cc19c4613a638df6f",
+  "priorOwnedArtifactSha256": "9f0ad22122d09bfb81e211442c7d1c2a62acbfcc3a4fb5b7be6bd490894163fd",
+  "sameAndroidSigningCertificate": true,
+  "keepAppRunning": true,
+  "startedUtc": "2026-10-20T05:11:24.990831+00:00",
+  "exitCode": 1,
+  "endedUtc": "2026-10-20T05:15:14.964244+00:00",
+  "behaviorPasses": 9,
+  "behaviorFailures": 1,
+  "frameworkTeardownPasses": 1,
+  "interactiveSkipped": 3,
+  "failureMeaning": "Harness asserted picker entered before real asynchronous database authorization finished; corrected with a bounded entered-event wait"
+}

@@ -1,0 +1,15 @@
+{
+  "date": "2026-10-20T06:10:17.363092+00:00",
+  "platform": "android",
+  "entrypoint": "lib/main.dart",
+  "artifactSha256": "84476df7f48f5f8511911b225944a56539e7cca6d614da7f9e78e412679395b7",
+  "priorOwnedArtifactSha256": "2eaa3b4984558ecb737c7bf8c5111e5b2c3957b20b2c7f07719d7625da4ce58a",
+  "preservedAcceptanceSections": 45,
+  "installMode": "adb install -r; no uninstall/data clear",
+  "launch": "normal MainActivity",
+  "result": "installed and launched",
+  "sourceManifestSha256": "f8eff7a7be03ecce269d7d5f19720a184cf212cfad2a974a45fedfba1d30b001",
+  "screenshotSha256": "e688d62f6d44f198773a89b4b950f79b42f4ab5f12ee37df547a7781015af235",
+  "screenshot": "build/artifacts/task13-current/android/normal-first-use.png",
+  "screenshotNote": "Actual normal first-use screen; no profile entered. Raw OS status bar retained only in ignored local evidence."
+}

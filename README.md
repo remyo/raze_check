@@ -14,6 +14,10 @@ The Flutter host composes `raze_check_core` (contracts and protocol), `raze_chec
 
 These are current UI labels for later hands-on testing. The two-phone printed-camera and native picker/share interaction checks remain deferred by the user; see the device matrix for what was actually verified.
 
+## Current local preview
+
+The normal Android app is installed on the authorized Samsung test phone; its retained debug APK is `build/artifacts/task13-current/android/raze-check-normal-debug.apk`. The local iOS simulator app at `build/artifacts/task13-current/ios-simulator/Runner.app` is for a Mac simulator, not a physical iPhone. Current iPhone signing/testing was explicitly deferred after the selected Israel Eusebio team had no usable Xcode account/profile for this bundle. Earlier iPhone test artifacts are not a normal current-app preview. These ignored local artifacts are not a published release.
+
 ## Development
 
 Use Flutter **3.44.7 / Dart 3.12.2** and the committed workspace lockfile:

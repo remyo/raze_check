@@ -1,0 +1,67 @@
+{
+  "base": "186ab549e3d6a469a61eebf548bbe6f010755b83",
+  "runtime": "3.12.2 (stable) (Tue Jun 9 01:11:39 2026 -0700) on \"macos_arm64\"",
+  "platform": "macos",
+  "externalStaff": 100,
+  "targetEvents": 10000,
+  "keyAdapter": "host memory keys, real AES and Ed25519",
+  "checkpoints": [
+    {
+      "events": 1,
+      "elapsedMs": 4052,
+      "verifyUs": 35989,
+      "importUs": 72401,
+      "rss": 200818688
+    },
+    {
+      "events": 10,
+      "elapsedMs": 4897,
+      "verifyUs": 293521,
+      "importUs": 636764,
+      "rss": 202326016
+    },
+    {
+      "events": 100,
+      "elapsedMs": 13258,
+      "verifyUs": 2726363,
+      "importUs": 6337937,
+      "rss": 184532992
+    },
+    {
+      "events": 1000,
+      "elapsedMs": 173071,
+      "verifyUs": 38906390,
+      "importUs": 127502003,
+      "rss": 133955584
+    },
+    {
+      "events": 5000,
+      "elapsedMs": 2405865,
+      "verifyUs": 408775620,
+      "importUs": 1979189093,
+      "rss": 192233472
+    },
+    {
+      "events": 10000,
+      "elapsedMs": 11894263,
+      "verifyUs": 2659697592,
+      "importUs": 9200773705,
+      "rss": 298582016
+    }
+  ],
+  "phase": "failed",
+  "elapsedMs": 11900864,
+  "maxRssBytes": 404520960,
+  "committedEvents": 10000,
+  "verifyUs": 2659697592,
+  "importUs": 9200773705,
+  "reopenMs": 1945,
+  "historyPages": 101,
+  "historyMs": 4073,
+  "result": "failed",
+  "failure": "Expected: ImportStatus:<ImportStatus.received>\n  Actual: ImportStatus:<ImportStatus.alreadyReceived>\n",
+  "terminalExitCode": 1,
+  "actualPostTerminationAttendanceCount": 10000,
+  "actualReceiptOracleLines": 10000,
+  "interpretation": "Original-source initial imports completed; original whole fixture test failed on wrong replay status expectation before archive; not a complete old-source capacity pass"
+}
