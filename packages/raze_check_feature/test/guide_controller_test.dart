@@ -1,0 +1,227 @@
+import 'dart:async';
+import 'package:raze_check_core/raze_check_core.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:raze_check_feature/src/guides/guide_catalog.dart';
+import 'package:raze_check_feature/src/guides/guide_controller.dart';
+import 'package:raze_check_feature/src/guides/guide_models.dart';
+import 'support/guide_fixture.dart';
+
+void main() {
+  test('invitation dismissal suppresses another permitted variant', () async {
+    final c = GuideController(catalog: GuideCatalog());
+    await c.initialize();
+    await c.bind(testGuideContext(variants: const {'review': 'staff'}));
+    c.dismissInvitation('review');
+    await c.bind(testGuideContext(variants: const {'review': 'owner'}));
+    expect(c.shouldInvite('review'), false);
+  });
+  test('disposed scene rejects pending bind validation', () async {
+    final delayed = Completer<void>(), token = Object();
+    final c = GuideController(catalog: GuideCatalog());
+    await c.initialize();
+    final binding = c.bind(
+      testGuideContext(token: token, validateCurrent: () => delayed.future),
+    );
+    c.invalidateScene(token);
+    delayed.complete();
+    await binding;
+    c.start('welcome');
+    expect(c.active, isNull);
+  });
+
+  test(
+    'resume by stable ID, removed step explains restart, dismissal survives revision',
+    () async {
+      final store = MemoryGuideProgressStore(
+        snapshot: GuideProgressSnapshot(
+          welcomeDismissed: true,
+          entries: [
+            const GuideProgress(
+              guideId: 'welcome',
+              variantId: 'public',
+              contentRevision: 99,
+              stepId: 'welcome-receipts',
+            ),
+            const GuideProgress(
+              guideId: 'companies',
+              variantId: 'personal',
+              contentRevision: 1,
+              stepId: 'removed',
+            ),
+            const GuideProgress(
+              guideId: 'unknown',
+              variantId: 'public',
+              contentRevision: 1,
+            ),
+          ],
+        ),
+      );
+      final c = GuideController(catalog: GuideCatalog(), store: store);
+      await c.initialize();
+      await c.bind(
+        testGuideContext(
+          variants: const {'welcome': 'public', 'companies': 'personal'},
+        ),
+      );
+      expect(c.progress.entries.length, 2);
+      c.start('welcome');
+      expect(c.active!.stepIndex, 2);
+      expect(c.progress.welcomeDismissed, true);
+      c.start('companies');
+      expect(c.active!.stepIndex, 0);
+      expect(c.notice, contains('changed'));
+      c.dismissInvitation('companies');
+      expect(c.shouldInvite('companies'), false);
+      await c.flush();
+      expect(store.writes, 3);
+    },
+  );
+  test('completion is Viewed and controls never navigate', () async {
+    var calls = 0;
+    final c = GuideController(catalog: GuideCatalog());
+    await c.initialize();
+    await c.bind(
+      testGuideContext(
+        navigation: {
+          GuideDestination.createCompany: () async {
+            calls++;
+          },
+        },
+      ),
+    );
+    c.start('welcome');
+    for (var i = 0; i < 5; i++) {
+      c.next();
+    }
+    expect(c.active, isNull);
+    expect(c.notice, 'Viewed');
+    expect(c.progress.entries.single.viewed, true);
+    expect(c.progress.welcomeDismissed, true);
+    expect(calls, 0);
+  });
+  test('write failure keeps ordered in-memory progress', () async {
+    final store = MemoryGuideProgressStore(failWrite: true);
+    final c = GuideController(catalog: GuideCatalog(), store: store);
+    await c.initialize();
+    await c.bind(testGuideContext());
+    c.start('welcome');
+    c.next();
+    c.next();
+    await c.flush();
+    expect(c.persistenceFailed, true);
+    expect(c.progress.entries.single.stepId, 'welcome-receipts');
+  });
+  test('stale bind validation never restores old scene', () async {
+    final delayed = Completer<void>();
+    final c = GuideController(catalog: GuideCatalog());
+    await c.initialize();
+    final old = c.bind(testGuideContext(validateCurrent: () => delayed.future));
+    final token = Object();
+    await c.bind(testGuideContext(token: token));
+    delayed.complete();
+    await old;
+    c.start('welcome');
+    expect(c.active!.contextToken, same(token));
+  });
+  for (final wrongAuthority in [false, true]) {
+    test(
+      'mismatched destination or authority cancels pending intent $wrongAuthority',
+      () async {
+        final authority = Object(), done = Completer<void>();
+        final token = Object();
+        final c = GuideController(catalog: GuideCatalog());
+        await c.initialize();
+        await c.bind(
+          testGuideContext(
+            token: token,
+            authorityToken: authority,
+            variants: const {'companies': 'personal'},
+            navigation: {GuideDestination.createCompany: () => done.future},
+          ),
+        );
+        c.start('companies');
+        final pending = c.showDestination();
+        await Future<void>.delayed(Duration.zero);
+        c.invalidateScene(token);
+        await c.bind(
+          testGuideContext(
+            authorityToken: wrongAuthority ? Object() : authority,
+            destination: wrongAuthority
+                ? GuideDestination.createCompany
+                : GuideDestination.team,
+            variants: const {'companies': 'personal'},
+          ),
+        );
+        expect(c.active, isNull);
+        done.complete();
+        await pending;
+        expect(c.active, isNull);
+      },
+    );
+  }
+
+  test('skip retains position and welcome dismissal', () async {
+    final c = GuideController(catalog: GuideCatalog());
+    await c.initialize();
+    await c.bind(testGuideContext());
+    c.start('welcome');
+    c.next();
+    c.skip();
+    expect(c.progress.welcomeDismissed, true);
+    c.start('welcome');
+    expect(c.active!.stepIndex, 1);
+    expect(c.sessionOnly, true);
+  });
+  test(
+    'navigation handshake resumes only matching authority and destination',
+    () async {
+      final authority = Object(), done = Completer<void>();
+      var calls = 0;
+      final c = GuideController(catalog: GuideCatalog());
+      await c.initialize();
+      await c.bind(
+        testGuideContext(
+          authorityToken: authority,
+          variants: const {'companies': 'personal'},
+          navigation: {
+            GuideDestination.createCompany: () {
+              calls++;
+              return done.future;
+            },
+          },
+        ),
+      );
+      c.start('companies');
+      c.next();
+      c.back();
+      expect(calls, 0);
+      final pending = c.showDestination();
+      await Future<void>.delayed(Duration.zero);
+      await c.bind(
+        testGuideContext(
+          authorityToken: authority,
+          destination: GuideDestination.createCompany,
+          variants: const {'companies': 'personal'},
+        ),
+      );
+      expect(c.active?.stepIndex, 0);
+      c.invalidateAuthority(authority);
+      done.complete();
+      await pending;
+      expect(c.active, isNull);
+    },
+  );
+  test('read and write failures retain memory progress', () async {
+    final c = GuideController(
+      catalog: GuideCatalog(),
+      store: MemoryGuideProgressStore(failRead: true),
+    );
+    await c.initialize();
+    await c.bind(testGuideContext());
+    c.start('welcome');
+    c.next();
+    await c.flush();
+    expect(c.persistenceFailed, true);
+    expect(c.active!.stepIndex, 1);
+  });
+}
