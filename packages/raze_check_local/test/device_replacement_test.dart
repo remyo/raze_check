@@ -226,6 +226,7 @@ void main() {
           ids: SecureIds(),
         );
         Company? other;
+        AttendanceReceipt? otherReceipt;
         if (restoreFirst) {
           other =
               (await pair.staff.companies.createCompany(
@@ -239,7 +240,59 @@ void main() {
                       as Committed<Company>)
                   .value;
         }
+        if (other != null) {
+          final code = await pair.staff.capture.createWorkplaceCode(
+            CommandContext(
+              companyId: other.id,
+              session: pair.staff.session,
+              operationId: 'other-code',
+              authorityGenerationId: other.authorityGenerationId,
+            ),
+          );
+          final verified = await pair.staff.capture.verifyWorkplace(
+            pair.staff.session,
+            other.id,
+            MessageCodec().encode(code),
+          );
+          final draft = await pair.staff.capture.beginDraft(
+            pair.staff.session,
+            other.id,
+            verified,
+            PunchKind.checkIn,
+          );
+          otherReceipt =
+              (await pair.staff.capture.recordPunch(
+                        draft.context(pair.staff.session),
+                        verified,
+                        PunchKind.checkIn,
+                      )
+                      as Committed<AttendanceReceipt>)
+                  .value;
+        }
         final savedReceipt = await pair.captureCheckIn();
+        // Exercise both persisted pending and committed old-installation slots.
+        if (!restoreFirst) {
+          await pair.staff.capture.finishDraft(
+            pair.staff.session,
+            pair.companyId,
+            savedReceipt.eventId,
+          );
+          await pair.staff.capture.beginDraft(
+            pair.staff.session,
+            pair.companyId,
+            await pair.workplace(),
+            PunchKind.checkOut,
+          );
+        }
+        final oldDraft = await pair.staff.capture.currentDraft(
+          pair.staff.session,
+          pair.companyId,
+        );
+        final oldIntent = (await pair.staff.storage.repo.read(
+          pair.companyId,
+          'capture-intent:${oldDraft!.operationId}',
+        ))!;
+
         final savedPin = (await pair.staff.storage.repo.read(
           pair.companyId,
           'enrollment-trust:${old.personId}',
@@ -413,6 +466,46 @@ void main() {
           ))!.payload,
           savedPin.payload,
         );
+        {
+          expect(
+            await target.capture.currentDraft(target.session, pair.companyId),
+            isNull,
+          );
+          final originalCode = await pair.manager.capture.createWorkplaceCode(
+            pair.context('new-code'),
+          );
+          final values = [...originalCode.payload.values]
+            ..[5] = chain.last.values;
+          final newCode = await lineage.sign(
+            pair,
+            MessageKind.workplace,
+            values,
+          );
+          final verifiedCode = await target.capture.verifyWorkplace(
+            target.session,
+            pair.companyId,
+            MessageCodec().encode(newCode),
+          );
+          final freshDraft = await target.capture.beginDraft(
+            target.session,
+            pair.companyId,
+            verifiedCode,
+            PunchKind.checkOut,
+          );
+          final newReceipt = await target.capture.recordPunch(
+            freshDraft.context(target.session),
+            verifiedCode,
+            PunchKind.checkOut,
+          );
+          expect(newReceipt, isA<Committed<AttendanceReceipt>>());
+          expect(
+            (await target.storage.repo.read(
+              pair.companyId,
+              oldIntent.id,
+            ))!.payload,
+            oldIntent.payload,
+          );
+        }
         final restoredJournal = (await target.storage.repo.snapshot(
           PersonalScope(old.personId),
         )).journal;
@@ -432,7 +525,29 @@ void main() {
           await target.storage.repo.hasRestoreCommit(exported.artifactId),
           isTrue,
         );
+        expect(
+          (await target.capture.getReceipt(
+            target.session,
+            pair.companyId,
+            savedReceipt.eventId,
+          )).bytes,
+          savedReceipt.bytes,
+        );
         if (other != null) {
+          await expectLater(
+            target.capture.getReceipt(
+              target.session,
+              other.id,
+              otherReceipt!.eventId,
+            ),
+            throwsA(
+              isA<CheckException>().having(
+                (e) => e.code,
+                'code',
+                CheckError.unauthorized,
+              ),
+            ),
+          );
           expect(
             await target.companies.readCompany(target.session, other.id),
             isNull,

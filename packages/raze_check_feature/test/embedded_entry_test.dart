@@ -12,11 +12,46 @@ void main() {
       final f = (await tester.runAsync(dashboardFixture))!;
       final d = f.pair.manager;
       await tester.runAsync(() async {
-        await d.companies.createCompany(
-          d.session,
-          const CompanyDraft('Second synthetic company', 'Europe/London'),
-          'second',
+        final other = f.pair.staff;
+        final c =
+            (await other.companies.createCompany(
+                      other.session,
+                      const CompanyDraft(
+                        'Second synthetic company',
+                        'Europe/London',
+                      ),
+                      'second',
+                    )
+                    as Committed<Company>)
+                .value;
+        CommandContext ctx(String op) => CommandContext(
+          companyId: c.id,
+          session: other.session,
+          operationId: op,
+          authorityGenerationId: c.authorityGenerationId,
         );
+        final invite = await other.enrollment.createInvitation(ctx('invite'));
+        final consent = await d.enrollment.acceptInvitation(
+          d.session,
+          MessageCodec().encode(invite),
+          acceptedRootFingerprint: c.rootFingerprint,
+        );
+        final join = await d.enrollment.requestJoin(
+          d.session,
+          consent,
+          SecureIds().next(),
+        );
+        final grant =
+            (await other.enrollment.approveJoin(
+                      ctx('approve'),
+                      await other.enrollment.verifyIncoming(
+                        other.session,
+                        MessageCodec().encode(join),
+                      ),
+                    )
+                    as Committed<SignedMessage>)
+                .value;
+        await d.acceptGrantTwice(grant);
       });
       final services = featureServices(d);
       var exits = 0;
@@ -56,6 +91,24 @@ void main() {
         ).textTheme.bodyMedium!.fontFamily,
         'HostTypeface',
       );
+      await tester.ensureVisible(find.text('Manual entry'));
+      await tester.runAsync(() async {
+        await tester.tap(find.text('Manual entry'));
+        await tester.pump();
+      });
+      await settleFeature(tester);
+      expect(find.text('Manual attendance · local record'), findsOneWidget);
+      await tester.tap(find.text('More'));
+      await tester.pumpAndSettle();
+      await tester.runAsync(() async {
+        await tester.tap(find.text('Attendance'));
+        await tester.pump();
+      });
+      await settleFeature(tester);
+      expect(find.text('Manual attendance · local record'), findsNothing);
+      await tester.tap(find.text('Back to company'));
+      await settleFeature(tester);
+      expect(find.byType(ManagerHomeScreen), findsOneWidget);
       await tester.tap(find.text('More'));
       await tester.pumpAndSettle();
       await tester.runAsync(() async {
@@ -83,6 +136,8 @@ void main() {
       await settleFeature(tester);
       expect(find.textContaining('Offline company'), findsNothing);
       expect(find.textContaining('Second synthetic company'), findsWidgets);
+      expect(find.byType(StaffHomeScreen), findsOneWidget);
+      expect(find.text('Your profile and company'), findsNothing);
       await tester.tap(find.text('Lock'));
       await settleFeature(tester, until: 'Unlock Owner');
       expect(find.byType(ManagerHomeScreen), findsNothing);

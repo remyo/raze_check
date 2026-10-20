@@ -98,9 +98,8 @@ final class LocalAttendanceQueries implements AttendanceQueries {
   Future<AttendanceItem?> _item(
     AttendanceReadView view,
     StoredRecord original,
-    String? person, {
-    bool history = false,
-  }) async {
+    String? person,
+  ) async {
     final row = await view.read('attendance-state:${original.id}');
     late Map<String, dynamic> data;
     if (row != null) {
@@ -148,19 +147,40 @@ final class LocalAttendanceQueries implements AttendanceQueries {
     }
     final subject = StaffRecord.fromJson(_json(staff));
     if (person != null && subject.personId != person) return null;
-    final decisions = <DecisionRecord>[];
-    if (history) {
-      for (var i = 1; i <= (data['decisionRevision'] as int); i++) {
-        final decision = await view.read('decision:${original.id}:$i');
-        // A returned self-contained decision can arrive before older decisions.
-        if (decision != null) decisions.add(DecisionRecord(_json(decision)));
+    return AttendanceItem(AttendanceRecord(data), subject.details.name);
+  }
+
+  Future<List<DecisionRecord>> _decisions(
+    AttendanceReadView view,
+    CommandContext context,
+    String eventId,
+    bool Function()? cancelled,
+  ) async {
+    final result = <DecisionRecord>[];
+    String? after;
+    while (true) {
+      _cancel(cancelled);
+      identity.requireActor(context.session).requireCompany(context.companyId);
+      final page = await view.decisions(eventId, after: after, limit: 50);
+      for (final row in page) {
+        _cancel(cancelled);
+        identity
+            .requireActor(context.session)
+            .requireCompany(context.companyId);
+        final decision = DecisionRecord(_json(row));
+        if (decision.data['companyId'] != context.companyId ||
+            decision.eventId != eventId) {
+          throw const CheckException(CheckError.malformed);
+        }
+        result.add(decision);
       }
+      if (page.length < 50) break;
+      after = page.last.id;
     }
-    return AttendanceItem(
-      AttendanceRecord(data),
-      subject.details.name,
-      decisions: decisions,
-    );
+    _cancel(cancelled);
+    identity.requireActor(context.session).requireCompany(context.companyId);
+    result.sort((a, b) => a.revision.compareTo(b.revision));
+    return result;
   }
 
   @override
@@ -227,7 +247,6 @@ final class LocalAttendanceQueries implements AttendanceQueries {
     String company,
     String? person,
     Future<void> Function(AttendanceItem) visit, {
-    bool history = false,
     bool Function()? cancelled,
   }) async {
     String? after;
@@ -242,7 +261,7 @@ final class LocalAttendanceQueries implements AttendanceQueries {
       for (final original in originals) {
         _cancel(cancelled);
         identity.requireActor(session).requireCompany(company);
-        final item = await _item(view, original, person, history: history);
+        final item = await _item(view, original, person);
         if (item != null) await visit(item);
       }
       if (originals.length < 50) break;
@@ -416,18 +435,25 @@ final class LocalAttendanceQueries implements AttendanceQueries {
       range.end.day + 1,
     ).millisecondsSinceEpoch;
     final rows = <AttendanceItem>[];
-    await _visit(
-      view,
-      context.session,
-      context.companyId,
-      access.person,
-      (item) async {
-        final time = item.record.effectiveUtcMs;
-        if (time >= start && time < end) rows.add(item);
-      },
-      history: true,
-      cancelled: cancelled,
-    );
+    await _visit(view, context.session, context.companyId, access.person, (
+      item,
+    ) async {
+      final time = item.record.effectiveUtcMs;
+      if (time >= start && time < end) {
+        rows.add(
+          AttendanceItem(
+            item.record,
+            item.employeeName,
+            decisions: await _decisions(
+              view,
+              context,
+              item.record.eventId,
+              cancelled,
+            ),
+          ),
+        );
+      }
+    }, cancelled: cancelled);
     final byEvent = {for (final item in rows) item.record.eventId: item};
     final requests = <String, List<AttendanceCorrectionRequest>>{};
     String? afterRequest;

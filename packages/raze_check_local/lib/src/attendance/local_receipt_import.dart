@@ -1,6 +1,12 @@
 part of 'local_attendance_service.dart';
 
 extension _ReceiptImport on LocalAttendanceService {
+  static const _sequenceFlags = {
+    'missingCheckIn',
+    'missingCheckOut',
+    'unexpectedOrder',
+    'possibleDuplicate',
+  };
   Future<ImportOutcome> _importReceipt(
     CommandContext context,
     VerifiedMessage receipt,
@@ -48,28 +54,93 @@ extension _ReceiptImport on LocalAttendanceService {
           final now = clock.nowUtc().millisecondsSinceEpoch;
           final prior = await view.read('attendance-state:${p.messageId}');
           final existingReceipt = await view.read('receipt:${p.messageId}');
-          // Import adds review evidence; capture and existing projection hints
-          // remain intact, including management-only flags on the projection.
+          // Preserve non-sequence evidence. Sequence hints are derived afresh from
+          // immutable original punch fields, never unsigned transferred flags.
           final flags = <String>{
             if (existingReceipt != null)
               ...(_json(existingReceipt)['flags'] as List).cast<String>(),
             if (prior != null)
               ...(_json(prior)['flags'] as List).cast<String>(),
           };
+          flags.removeAll(_sequenceFlags);
           if (verified.historicalCredential) flags.add('historicalCredential');
           if (p.field<int>('claimedUtcMs') > now + 300000) {
             flags.add('clockAnomaly');
           }
-          for (final r in await view.list('attendanceState')) {
+          final staffStates = (await view.list('attendanceState')).where((r) {
             final d = _json(r);
-            if (d['employeeId'] == p.field<String>('employeeId') &&
-                d['eventId'] != p.messageId &&
-                d['originalKind'] == p.field<String>('kind') &&
-                ((d['claimedUtcMs'] as int) - p.field<int>('claimedUtcMs'))
-                        .abs() <=
+            return d['employeeId'] == p.field<String>('employeeId') &&
+                d['source'] == 'staticQr' &&
+                d['eventId'] != p.messageId;
+          }).toList();
+          final currentData = <String, dynamic>{
+            ...(prior == null ? _receiptState(message) : _json(prior)),
+            'delivery': 'received',
+            'receivedUtcMs': now,
+            'flags': flags.toList(),
+          };
+          final sequence = [for (final r in staffStates) _json(r), currentData]
+            ..sort((a, b) {
+              final order = (a['claimedUtcMs'] as int).compareTo(
+                b['claimedUtcMs'] as int,
+              );
+              return order != 0
+                  ? order
+                  : (a['eventId'] as String).compareTo(b['eventId'] as String);
+            });
+          final byEvent = {
+            for (final r in staffStates) _json(r)['eventId'] as String: r,
+          };
+          final duplicateIds = <String>{};
+          final previousByKind = <String, Map<String, dynamic>>{};
+          for (final d in sequence) {
+            final kind = d['originalKind'] as String;
+            final previous = previousByKind[kind];
+            if (previous != null &&
+                (d['claimedUtcMs'] as int) -
+                        (previous['claimedUtcMs'] as int) <=
                     120000) {
-              flags.add('possibleDuplicate');
-              break;
+              duplicateIds
+                ..add(d['eventId'] as String)
+                ..add(previous['eventId'] as String);
+            }
+            previousByKind[kind] = d;
+          }
+          final reconciled = <StoredRecord>[];
+          for (var i = 0; i < sequence.length; i++) {
+            final d = sequence[i], previous = i == 0 ? null : sequence[i - 1];
+            final hints = <String>{...(d['flags'] as List).cast<String>()}
+              ..removeAll(_sequenceFlags);
+            if (d['originalKind'] == previous?['originalKind']) {
+              hints.add('unexpectedOrder');
+            }
+            if (d['originalKind'] == 'checkOut' &&
+                previous?['originalKind'] != 'checkIn') {
+              hints.add('missingCheckIn');
+            }
+            if (d['originalKind'] == 'checkIn' &&
+                previous?['originalKind'] == 'checkIn') {
+              hints.add('missingCheckOut');
+            }
+            if (duplicateIds.contains(d['eventId'])) {
+              hints.add('possibleDuplicate');
+            }
+            if (d['eventId'] == p.messageId) {
+              flags
+                ..clear()
+                ..addAll(hints);
+            } else {
+              final oldFlags = (d['flags'] as List).cast<String>().toSet();
+              if (hints.length != oldFlags.length ||
+                  !hints.containsAll(oldFlags)) {
+                final old = byEvent[d['eventId']]!;
+                reconciled.add(
+                  _row(c.id, old.id, old.kind, {
+                    ...d,
+                    'flags': hints.toList(),
+                  }, old.revision + 1),
+                );
+              }
             }
           }
           final ack = await _sign(
@@ -156,6 +227,7 @@ extension _ReceiptImport on LocalAttendanceService {
             [
               result,
               state,
+              ...reconciled,
               receiptRow,
               if (await view.read(credentialRow.id) == null) credentialRow,
             ],

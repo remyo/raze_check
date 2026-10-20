@@ -312,6 +312,9 @@ final class LocalDeviceReplacementService implements DeviceReplacementService {
           capabilities: member.capabilities,
           revision: member.revision + 1,
         );
+        if (!compatibleCompanyName(company.name)) {
+          throw const CheckException(CheckError.incompatibleCompanyName);
+        }
         final grant = await sign(
           MessageKind.membershipGrant,
           [

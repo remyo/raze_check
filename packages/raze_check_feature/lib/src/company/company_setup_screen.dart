@@ -33,7 +33,13 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
       Text('Create company', style: Theme.of(context).textTheme.headlineSmall),
       TextField(
         controller: _name,
-        decoration: const InputDecoration(labelText: 'Company name'),
+        decoration: InputDecoration(
+          labelText: 'Company name',
+          helperText: 'Up to 120 Unicode characters',
+          errorText: _name.text.isNotEmpty && !compatibleCompanyName(_name.text)
+              ? 'Enter a name of 1–120 Unicode characters.'
+              : null,
+        ),
         onChanged: (_) => setState(() {}),
       ),
       const SizedBox(height: 16),
@@ -57,7 +63,8 @@ class _CompanySetupScreenState extends State<CompanySetupScreen> {
       if (widget.error != null) Text(widget.error!),
       const SizedBox(height: 16),
       FilledButton(
-        onPressed: widget.busy || _zone == null || _name.text.trim().isEmpty
+        onPressed:
+            widget.busy || _zone == null || !compatibleCompanyName(_name.text)
             ? null
             : () => widget.onSave(CompanyDraft(_name.text, _zone!)),
         child: Text(widget.busy ? 'Saving…' : 'Create company'),

@@ -11,6 +11,44 @@ final class AttendanceReadView implements ReadView {
   @override
   Future<List<StoredRecord>> list(String kind) => _view.list(kind);
 
+  /// The immutable decision IDs are event-scoped. Range bounds use the existing
+  /// company/id index; LIMIT bounds decoding even when revisions are sparse.
+  Future<List<StoredRecord>> decisions(
+    String eventId, {
+    String? after,
+    int limit = 50,
+  }) async {
+    _view._requireActive();
+    if (limit < 1 || limit > 100) {
+      throw const CheckException(CheckError.limitExceeded);
+    }
+    final prefix = 'decision:$eventId:';
+    final rows = await _view.repository._db
+        .customSelect(
+          '''
+      SELECT r.* FROM stored_rows r
+      WHERE r.company_id = ? AND r.id >= ? AND r.id < ?
+      AND r.category = 'event' AND r.kind = 'attendanceDecisionRecord'
+      ${after == null ? '' : 'AND r.id > ?'}
+      ORDER BY r.id LIMIT ?
+    ''',
+          variables: [
+            Variable.withString(_view.companyId),
+            Variable.withString(prefix),
+            Variable.withString('$prefix~'),
+            if (after != null) Variable.withString(after),
+            Variable.withInt(limit),
+          ],
+        )
+        .get();
+    final result = <StoredRecord>[];
+    for (final row in rows) {
+      _view._requireActive();
+      result.add(await _view.repository._decodeRecord(row));
+    }
+    return List.unmodifiable(result);
+  }
+
   /// Stable event-ID order, not chronological order. LIMIT precedes decryption.
   Future<List<StoredRecord>> events({
     String? personId,

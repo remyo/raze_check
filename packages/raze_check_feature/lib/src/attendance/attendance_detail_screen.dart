@@ -64,7 +64,12 @@ class _AttendanceDetailScreenState extends State<AttendanceDetailScreen> {
           Text(
             'Received: ${DateTime.fromMillisecondsSinceEpoch(r.receivedUtcMs!, isUtc: true).toIso8601String()}',
           ),
-        if (r.flags.isNotEmpty) Text('Needs review: ${r.flags.join(', ')}'),
+        if (r.flags.isNotEmpty) ...[
+          Text('Needs review: ${r.flags.map(attendanceHintLabel).join(', ')}'),
+          const Text(
+            'Hints use known receipts. Offline delivery may be incomplete; later receipts can resolve a hint.',
+          ),
+        ],
         if (r.source == AttendanceSource.manual) ...[
           Text('Entered by ${r.data['actorPersonId']} · ${r.data['reason']}'),
           const Text(

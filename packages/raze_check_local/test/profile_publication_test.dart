@@ -42,7 +42,46 @@ class ReplacementGatedWriter implements CatalogStagingWriter {
   }
 }
 
+class CleanupFailureKeys extends MemoryKeyStore {
+  final creationError = const CheckException(CheckError.wrongSecret);
+  final deleted = <String>[];
+  @override
+  Future<void> write(String id, Uint8List value) async {
+    if (id.startsWith('credential:')) throw creationError;
+    await super.write(id, value);
+  }
+
+  @override
+  Future<void> delete(String id) async {
+    deleted.add(id);
+    if (deleted.length == 1) throw StateError('first cleanup failed');
+    await super.delete(id);
+  }
+}
+
 void main() {
+  test(
+    'profile failure preserves original error and attempts all owned key cleanup',
+    () async {
+      final paths = await tempPaths();
+      addTearDown(() => paths.root.delete(recursive: true));
+      final keys = CleanupFailureKeys();
+      final identity = LocalIdentityService(
+        keys: keys,
+        catalog: ProfileCatalog(paths: paths, keys: keys),
+        clock: FakeClock(),
+        ids: SecureIds(),
+      );
+      await expectLater(
+        identity.createProfile('Alice', 'a strong passphrase'),
+        throwsA(same(keys.creationError)),
+      );
+      expect(keys.deleted, hasLength(3));
+      expect(keys.values.keys.where((k) => k.startsWith('signing:')), isEmpty);
+      expect(await identity.profiles(), isEmpty);
+    },
+  );
+
   const secret = 'a long safe passphrase';
   test(
     'lock during catalog seal rejects setup without publishing a profile',

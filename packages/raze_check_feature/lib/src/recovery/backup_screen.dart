@@ -5,6 +5,8 @@ import 'restore_review_screen.dart';
 
 String archiveError(Object error) => error is CheckException
     ? switch (error.code) {
+        CheckError.incompatibleCompanyName =>
+          'The company name exceeds 120 characters. The owner must use More → Correct company name before issuing a replacement grant.',
         CheckError.invalidSignature => 'Wrong passphrase or damaged backup',
         CheckError.limitExceeded =>
           'Backup exceeds the supported limit: 64 MiB encrypted and expanded, 8 MiB per attachment, 10,000 files. Previous backups and source data are unchanged.',

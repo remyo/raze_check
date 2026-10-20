@@ -144,6 +144,8 @@ class CompanyWorkspaceState extends State<CompanyWorkspace> {
       _enrolling = false;
       _capturing = false;
       _reviewing = false;
+      _manualEntry = false;
+      _tab = 0;
       _selected = null;
       _draft = false;
       _setup = false;
@@ -299,6 +301,8 @@ class CompanyWorkspaceState extends State<CompanyWorkspace> {
       _enrolling = false;
       _capturing = false;
       _reviewing = false;
+      _manualEntry = false;
+      _tab = 0;
       _selected = company;
       _draft = false;
       _setup = false;
@@ -428,7 +432,7 @@ class CompanyWorkspaceState extends State<CompanyWorkspace> {
               TextButton(
                 onPressed: _openEnrollment,
                 child: Text(
-                  _canManage
+                  _canInvite
                       ? 'Invite or review join'
                       : 'Join or receive membership',
                 ),
@@ -467,7 +471,11 @@ class CompanyWorkspaceState extends State<CompanyWorkspace> {
       return Column(
         children: [
           TextButton(
-            onPressed: () => setState(() => _reviewing = false),
+            onPressed: () => setState(() {
+              _reviewing = false;
+              _manualEntry = false;
+              _tab = 0;
+            }),
             child: const Text('Back to company'),
           ),
           Expanded(
@@ -703,6 +711,39 @@ class CompanyWorkspaceState extends State<CompanyWorkspace> {
     }
   }
 
+  Future<void> _correctName() async {
+    final company = _selected!, epoch = _generation, session = widget.session;
+    final companies = widget.companies;
+    final command = CommandContext(
+      companyId: company.id,
+      session: session,
+      operationId: widget.ids.next(),
+      authorityGenerationId: company.authorityGenerationId,
+    );
+    final corrected = await showDialog<Company>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _CompanyNameRepairDialog(
+        name: company.name,
+        onSave: (name) => companies.correctName(command, name),
+      ),
+    );
+    if (!mounted ||
+        corrected == null ||
+        _generation != epoch ||
+        _selected?.id != company.id ||
+        !identical(session, widget.session)) {
+      return;
+    }
+    setState(() {
+      _selected = corrected;
+      _companies = [
+        for (final c in _companies) c.id == company.id ? corrected : c,
+      ];
+    });
+    widget.onAuthorizedActivity();
+  }
+
   void _attendance() => setState(() {
     _tab = 1;
     _manualEntry = false;
@@ -830,6 +871,7 @@ class CompanyWorkspaceState extends State<CompanyWorkspace> {
                               ),
                               onPressed: () => setState(() {
                                 _tab = i;
+                                _manualEntry = false;
                                 _enrolling = false;
                                 _capturing = false;
                                 _reviewing = i == 1;
@@ -942,6 +984,12 @@ class CompanyWorkspaceState extends State<CompanyWorkspace> {
           _managerMode ? 'Company tools' : 'Your profile and company',
           style: Theme.of(context).textTheme.headlineSmall,
         ),
+        if (_owner &&
+            _selected!.name.runes.length > MessageLimits.nameCharacters)
+          OutlinedButton(
+            onPressed: _correctName,
+            child: const Text('Correct company name'),
+          ),
         if (_canExport || widget.canCreateCompany)
           FilledButton.icon(
             onPressed: _report,
@@ -970,4 +1018,88 @@ class CompanyWorkspaceState extends State<CompanyWorkspace> {
       ],
     );
   }
+}
+
+/// Owns the editor until its route actually unmounts, including the exit animation.
+class _CompanyNameRepairDialog extends StatefulWidget {
+  const _CompanyNameRepairDialog({required this.name, required this.onSave});
+  final String name;
+  final Future<CommandResult<Company>> Function(String) onSave;
+  @override
+  State<_CompanyNameRepairDialog> createState() =>
+      _CompanyNameRepairDialogState();
+}
+
+class _CompanyNameRepairDialogState extends State<_CompanyNameRepairDialog> {
+  late final name = TextEditingController(text: widget.name);
+  bool busy = false;
+  String? error;
+  @override
+  void dispose() {
+    name.dispose();
+    super.dispose();
+  }
+
+  Future<void> save() async {
+    setState(() {
+      busy = true;
+      error = null;
+    });
+    try {
+      final result = await widget.onSave(name.text);
+      if (!mounted) return;
+      if (result is Committed<Company>) {
+        setState(() => busy = false);
+        Navigator.pop(context, result.value);
+      } else {
+        setState(() {
+          busy = false;
+          error = profileError(
+            result is Rejected<Company>
+                ? result.error
+                : CheckError.duplicateConflict,
+          );
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        busy = false;
+        error = profileError(
+          e is CheckException ? e.code : CheckError.storageFailure,
+        );
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    scrollable: true,
+    title: const Text('Correct company name'),
+    content: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text(
+          'Shorten this legacy name to 1–120 Unicode characters so new memberships can be issued. Existing signed messages keep their original names.',
+        ),
+        TextField(
+          controller: name,
+          onChanged: (_) => setState(() {}),
+          decoration: const InputDecoration(labelText: 'Company name'),
+        ),
+        if (busy) const LinearProgressIndicator(),
+        if (error != null) Text(error!),
+      ],
+    ),
+    actions: [
+      TextButton(
+        onPressed: busy ? null : () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: busy || !compatibleCompanyName(name.text) ? null : save,
+        child: Text(busy ? 'Saving…' : 'Save corrected name'),
+      ),
+    ],
+  );
 }

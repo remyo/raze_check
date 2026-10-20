@@ -240,7 +240,10 @@ Future<void> recoveryAcceptance(
     )).length,
     2,
   );
-  // A real personal export remains independently scoped and has no owner root.
+  // Smoke: a personal descriptor produces encrypted bytes. Authenticated content
+  // scope/root exclusion is checked by archive_scope_test.dart (personal scope),
+  // and actual passive restoration/activation by device_replacement_test.dart.
+  // This smoke tail alone does not inspect the encrypted contents.
   final personal = await staff.archives.create(
     staff.session,
     PersonalScope(staff.identity.requireActor(staff.session).personId),

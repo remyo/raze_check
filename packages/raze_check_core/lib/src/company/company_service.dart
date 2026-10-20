@@ -10,6 +10,12 @@ abstract interface class CompanyService {
     CompanyDraft draft,
     String operationId,
   );
+
+  /// Owner-only compatibility repair of an existing overlong company name.
+  Future<CommandResult<Company>> correctName(
+    CommandContext context,
+    String name,
+  );
   Future<List<Company>> listCompanies(SessionHandle session);
   Future<Company?> readCompany(SessionHandle session, String companyId);
   Future<Membership?> membership(SessionHandle session, String companyId);

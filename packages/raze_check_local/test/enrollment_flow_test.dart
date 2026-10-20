@@ -12,6 +12,104 @@ void main() {
   late TwoDeviceFixture pair;
   setUp(() async => pair = await TwoDeviceFixture.create());
   tearDown(() => pair.dispose());
+  for (final capability in [
+    Capability.manageMemberships,
+    Capability.manageStaff,
+  ]) {
+    test(
+      'enrollment permission is manageMemberships, operator has ${capability.name}',
+      () async {
+        final d = pair.manager;
+        final owner = d.identity.requireActor(d.session).personId;
+        final request = await pair.join();
+        final manual =
+            (await d.companies.createStaff(
+                      pair.context('manual'),
+                      const StaffDraft(name: 'Manual'),
+                    )
+                    as Committed<StaffRecord>)
+                .value;
+        final operator =
+            (await d.companies.createStaff(
+                      pair.context('operator'),
+                      const StaffDraft(name: 'Operator'),
+                    )
+                    as Committed<StaffRecord>)
+                .value;
+        await d.companies.grantCapabilities(
+          pair.context('capabilities'),
+          operator.membershipId,
+          {capability},
+        );
+        await d.companies.activateOperator(
+          pair.context('activate'),
+          operator.membershipId,
+          'operator passphrase',
+        );
+        d.session = await d.companies.unlockOperator(
+          pair.companyId,
+          operator.membershipId,
+          'operator passphrase',
+        );
+        final allowed = capability == Capability.manageMemberships;
+        if (allowed) {
+          expect(
+            (await d.enrollment.createInvitation(
+              pair.context('operator-invitation'),
+            )).kind,
+            MessageKind.invitation,
+          );
+          expect(
+            await d.enrollment.approveJoin(
+              pair.context('operator-link'),
+              request,
+              existingEmployeeId: manual.employeeId,
+            ),
+            isA<Rejected<SignedMessage>>(),
+          );
+          expect(
+            await d.enrollment.approveJoin(
+              pair.context('operator-approve'),
+              request,
+            ),
+            isA<Committed<SignedMessage>>(),
+          );
+        } else {
+          await expectLater(
+            d.enrollment.createInvitation(pair.context('operator-invitation')),
+            throwsCheck(CheckError.unauthorized),
+          );
+          expect(
+            (await d.enrollment.approveJoin(
+                      pair.context('operator-approve'),
+                      request,
+                    )
+                    as Rejected<SignedMessage>)
+                .error,
+            CheckError.unauthorized,
+          );
+        }
+        await expectLater(
+          d.enrollment.createInvitation(
+            CommandContext(
+              companyId: SecureIds().next(),
+              session: d.session,
+              operationId: 'other',
+              authorityGenerationId: pair.company.authorityGenerationId,
+            ),
+          ),
+          throwsA(isA<CheckException>()),
+        );
+        d.session = await d.identity.unlock(owner, 'a strong local passphrase');
+        expect(
+          (await d.enrollment.createInvitation(
+            pair.context('owner-invitation'),
+          )).kind,
+          MessageKind.invitation,
+        );
+      },
+    );
+  }
   test(
     'company owner attendance uses the current local authority installation',
     () async {

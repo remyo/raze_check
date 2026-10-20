@@ -152,7 +152,7 @@ final class LocalEnrollmentService
         : await view.read(_json(index)['membershipId'] as String);
     if (memberRow == null) throw const CheckException(CheckError.unauthorized);
     final member = Membership.fromJson(_json(memberRow));
-    policy.require(context.session, member, Capability.manageStaff);
+    policy.require(context.session, member, Capability.manageMemberships);
     if (actor.restrictedCompanyId != null) {
       final credential = await view.read('operator:${member.id}');
       if (credential == null ||
@@ -622,6 +622,9 @@ final class LocalEnrollmentService
                 StaffDraft(name: p.field<String>('displayName')),
             revision: manual == null ? 1 : manual.revision + 1,
           );
+          if (!compatibleCompanyName(company.name)) {
+            throw const CheckException(CheckError.incompatibleCompanyName);
+          }
           final grant = await _sign(
             MessageKind.membershipGrant,
             [

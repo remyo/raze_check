@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'dart:convert';
 import 'dart:isolate';
 import 'dart:io';
@@ -293,7 +294,18 @@ final class LocalIdentityService
     } finally {
       if (!committed) {
         for (final id in allocated) {
-          await keys.delete(id);
+          try {
+            await keys.delete(id);
+          } catch (error, stack) {
+            // Cleanup diagnostics must not replace the original setup failure,
+            // or prevent attempts to remove later unpublished owned keys.
+            developer.log(
+              'Unpublished profile key cleanup failed',
+              name: 'raze_check.identity',
+              error: error,
+              stackTrace: stack,
+            );
+          }
         }
       }
     }

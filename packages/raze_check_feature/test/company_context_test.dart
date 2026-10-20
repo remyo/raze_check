@@ -66,6 +66,48 @@ class Companies implements CompanyService {
 
 void main() {
   testWidgets(
+    'company setup displays scalar constraint and prevents overlong submission',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1000, 1400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CompanySetupScreen(onSave: (_) async {}, onCancel: () {}),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Select IANA time zone'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).last, 'Asia/Tokyo');
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ListTile, 'Asia/Tokyo'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), '😀' * 121);
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.widgetWithText(FilledButton, 'Create company'),
+            )
+            .onPressed,
+        isNull,
+      );
+      expect(find.textContaining('120'), findsWidgets);
+      await tester.enterText(find.byType(TextField), '😀' * 120);
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<FilledButton>(
+              find.widgetWithText(FilledButton, 'Create company'),
+            )
+            .onPressed,
+        isNotNull,
+      );
+    },
+  );
+
+  testWidgets(
     'old staff draft completion preserves replacement draft in same company',
     (tester) async {
       final service = Companies()..pending = Completer();

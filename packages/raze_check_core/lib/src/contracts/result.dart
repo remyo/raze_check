@@ -15,6 +15,7 @@ enum CheckError {
   incompleteArchive,
   wrongSecret,
   recoveryRequired,
+  incompatibleCompanyName,
 }
 
 final class CheckException implements Exception {

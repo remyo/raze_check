@@ -1,6 +1,16 @@
+import '../messaging/message_limits.dart';
 import '../contracts/capability.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
+
+/// New names must fit the unchanged v1 membership-grant scalar limit.
+/// Stored historical names remain readable without normalization.
+bool compatibleCompanyName(String name) {
+  final scalars = name.runes.toList();
+  return name.trim().isNotEmpty &&
+      scalars.length <= MessageLimits.nameCharacters &&
+      !scalars.any((r) => r >= 0xd800 && r <= 0xdfff);
+}
 
 final class CompanyDraft {
   const CompanyDraft(this.name, this.timeZoneId);

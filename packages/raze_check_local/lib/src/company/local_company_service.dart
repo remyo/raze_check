@@ -158,8 +158,7 @@ final class LocalCompanyService implements CompanyService {
       if (actor.restrictedCompanyId != null) {
         throw const CheckException(CheckError.unauthorized);
       }
-      if (draft.name.trim().isEmpty ||
-          draft.name.runes.length > 200 ||
+      if (!compatibleCompanyName(draft.name) ||
           !CompanyTimeZones.all.contains(draft.timeZoneId) ||
           operationId.isEmpty) {
         throw const CheckException(CheckError.malformed);
@@ -492,6 +491,41 @@ final class LocalCompanyService implements CompanyService {
       context.session,
     );
   });
+  @override
+  Future<CommandResult<Company>> correctName(
+    CommandContext context,
+    String name,
+  ) => _command(
+    context,
+    Capability.manageCompany,
+    ['correctCompanyName', name.trim()],
+    Company.fromJson,
+    (view, member) async {
+      if (!member.owner) throw const CheckException(CheckError.unauthorized);
+      if (!compatibleCompanyName(name)) {
+        throw const CheckException(CheckError.incompatibleCompanyName);
+      }
+      final old = (await view.read(context.companyId))!;
+      final data = _json(old);
+      if ((data['name'] as String).runes.length <=
+          MessageLimits.nameCharacters) {
+        throw const CheckException(CheckError.invalidTransition);
+      }
+      final next = _row(context.companyId, old.id, old.kind, {
+        ...data,
+        'name': name.trim(),
+      }, old.revision + 1);
+      final history =
+          _row(context.companyId, ids.next(), 'companyNameCorrection', {
+            'previousName': data['name'],
+            'name': name.trim(),
+            'actorPersonId': member.personId,
+            'utcMs': clock.nowUtc().millisecondsSinceEpoch,
+          });
+      return Mutation([next], [history], [], next);
+    },
+  );
+
   @override
   Future<CommandResult<StaffRecord>> createStaff(
     CommandContext context,

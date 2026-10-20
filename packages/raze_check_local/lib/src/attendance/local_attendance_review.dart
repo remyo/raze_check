@@ -307,7 +307,11 @@ extension _AttendanceReview on LocalAttendanceService {
     String operationId,
   ) async {
     final actor = AttendanceAuthorization(identity).requirePersonal(session);
-    final c = await _company(companyId, _QueryView(repository, companyId));
+    final c = (await AttendanceAuthorization(identity).require(
+      session,
+      companyId,
+      (id) => repository.read(companyId, id),
+    )).company;
     late Membership member;
     final context = CommandContext(
       companyId: companyId,

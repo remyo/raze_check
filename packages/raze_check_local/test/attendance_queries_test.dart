@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:drift/drift.dart'
     show QueryInterceptor, QueryExecutor, ApplyInterceptor;
@@ -15,6 +17,122 @@ LocalAttendanceQueries queries(EnrollmentDevice d) => LocalAttendanceQueries(
   clock: d.clock,
 );
 void main() {
+  test(
+    'sparse signed decision reports enumerate retained history with bounded work and cancellation',
+    () async {
+      final p = await TwoDeviceFixture.create();
+      addTearDown(p.dispose);
+      await p.enrollStaff();
+      final receipt = await p.captureCheckIn();
+      final m = service(p.manager), s = service(p.staff);
+      await m.importReceipt(
+        p.context('receive'),
+        await m.verifyIncoming(p.manager.session, p.companyId, receipt.bytes),
+      );
+      final original =
+          (await m.decide(
+                    p.context('decision'),
+                    receipt.eventId,
+                    ReviewDecision.approve,
+                    'Checked',
+                  )
+                  as Committed<DecisionRecord>)
+              .value
+              .returnMessage!;
+      Future<void> accept(int revision) async {
+        final values = [...original.payload.values]
+          ..[1] = SecureIds().next()
+          ..[5] = SecureIds().next()
+          ..[6] = revision;
+        final bytes = Uint8List.fromList(utf8.encode(jsonEncode(values)));
+        final message = SignedMessage(
+          kind: MessageKind.attendanceDecision,
+          keyId: original.keyId,
+          payloadBytes: bytes,
+          signature: await LocalKeyService(p.manager.storage.keys).sign(
+            messageSigningBytes(MessageKind.attendanceDecision, bytes),
+            p.company.authoritySigningKeyId,
+          ),
+        );
+        expect(
+          await s.accept(
+            p.staff.session,
+            await s.verifyIncoming(
+              p.staff.session,
+              p.companyId,
+              MessageCodec().encode(message),
+            ),
+          ),
+          isA<Committed<AttendanceRecord>>(),
+        );
+      }
+
+      await accept(9007199254740991);
+      await accept(3);
+      final probe = DecisionProbe();
+      final repository = LocalCheckRepository(
+        database: CheckDatabase(
+          NativeDatabase.createInBackground(
+            p.staff.storage.paths.database,
+          ).interceptWith(probe),
+        ),
+        cipher: AesPayloadCipher(VaultKeys(p.staff.storage.keys)),
+      );
+      addTearDown(repository.close);
+      final q = LocalAttendanceQueries(
+        repository: repository,
+        identity: p.staff.identity,
+        clock: p.staff.clock,
+      );
+      final context = CommandContext(
+        companyId: p.companyId,
+        session: p.staff.session,
+        operationId: 'report',
+        authorityGenerationId: p.company.authorityGenerationId,
+      );
+      final range = DateRange(DateTime(2026, 10, 19), DateTime(2026, 10, 19));
+      final report = await q.report(context, range);
+      expect(report.rows.single.decisions.map((d) => d.revision), [
+        3,
+        9007199254740991,
+      ]);
+      expect(probe.gapReads, lessThanOrEqualTo(2));
+      probe.reset();
+      expect(
+        (await q.report(
+          context,
+          DateRange(DateTime(2025), DateTime(2025)),
+        )).rows,
+        isEmpty,
+      );
+      expect(probe.decisionPages, 0);
+      probe.reset();
+      await expectLater(
+        q.report(context, range, cancelled: () => probe.decisionPages > 0),
+        throwsA(
+          isA<CheckException>().having(
+            (e) => e.code,
+            'code',
+            CheckError.invalidTransition,
+          ),
+        ),
+      );
+      probe.reset();
+      probe.onDecisionPage = p.staff.identity.lock;
+      await expectLater(
+        q.report(context, range),
+        throwsA(
+          isA<CheckException>().having(
+            (e) => e.code,
+            'code',
+            CheckError.locked,
+          ),
+        ),
+      );
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
+
   test(
     'effective calendar dates honor DST and retain corrections plus original history',
     () async {
@@ -428,5 +546,32 @@ final class PageProbe extends QueryInterceptor {
       if (rows.length > maxRows) maxRows = rows.length;
     }
     return rows;
+  }
+}
+
+final class DecisionProbe extends QueryInterceptor {
+  int gapReads = 0, decisionPages = 0;
+  void Function()? onDecisionPage;
+  void reset() {
+    gapReads = 0;
+    decisionPages = 0;
+  }
+
+  @override
+  Future<List<Map<String, Object?>>> runSelect(
+    QueryExecutor executor,
+    String statement,
+    List<Object?> args,
+  ) async {
+    if (args.any((a) => a is String && a.startsWith('decision:'))) {
+      if (!statement.contains('LIMIT ?') && ++gapReads > 12) {
+        throw StateError('Report attempted more than 12 decision-gap reads');
+      }
+      if (statement.contains('LIMIT ?')) {
+        decisionPages++;
+        onDecisionPage?.call();
+      }
+    }
+    return executor.runSelect(statement, args);
   }
 }

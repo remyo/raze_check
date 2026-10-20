@@ -1,6 +1,7 @@
 @Timeout(Duration(minutes: 2))
 library;
 
+import 'support/dashboard_fixture.dart' show settleFeature;
 import 'dart:collection';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -33,6 +34,60 @@ void main() {
     await settleEnrollment(tester);
   }
 
+  for (final cap in [Capability.manageMemberships, Capability.manageStaff]) {
+    testWidgets('shell enrollment follows ${cap.name} operator capability', (
+      tester,
+    ) async {
+      await tester.runAsync(() async {
+        final d = pair.manager;
+        final operator =
+            (await d.companies.createStaff(
+                      pair.context('operator'),
+                      const StaffDraft(name: 'Operator'),
+                    )
+                    as Committed<StaffRecord>)
+                .value;
+        await d.companies.grantCapabilities(
+          pair.context('grant'),
+          operator.membershipId,
+          {cap},
+        );
+        await d.companies.activateOperator(
+          pair.context('activate'),
+          operator.membershipId,
+          'operator passphrase',
+        );
+        d.session = await d.companies.unlockOperator(
+          pair.companyId,
+          operator.membershipId,
+          'operator passphrase',
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: CompanyWorkspace(
+                companies: d.companies,
+                enrollment: d.enrollment,
+                messages: FakeMessagePort(),
+                session: d.session,
+                ids: SecureIds(),
+                canCreateCompany: false,
+                onAuthorizedActivity: () {},
+                onSessionChanged: (_) {},
+                onLocked: () {},
+              ),
+            ),
+          ),
+        );
+      });
+      await settleFeature(tester);
+      expect(
+        find.text('Invite or review join'),
+        cap == Capability.manageMemberships ? findsOneWidget : findsNothing,
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  }
   testWidgets(
     'injected bytes run invitation consent, pending, manager approval and grant receipt',
     (tester) async {

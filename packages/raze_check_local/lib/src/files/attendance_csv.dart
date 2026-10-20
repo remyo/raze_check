@@ -41,7 +41,7 @@ abstract final class AttendanceCsv {
         'Source',
         'Delivery',
         'Review',
-        'Exceptions',
+        'Review hints (known receipts; offline delivery may be incomplete)',
         'Manual reason',
         'Correction history',
         'Correction requests',
@@ -60,7 +60,7 @@ abstract final class AttendanceCsv {
           item.record.source.name,
           item.record.delivery.name,
           item.record.review.name,
-          item.record.flags.join('; '),
+          item.record.flags.map(attendanceHintLabel).join('; '),
           item.record.data['reason'] as String? ?? '',
           item.decisions
               .where((d) => d.correctionId != null)

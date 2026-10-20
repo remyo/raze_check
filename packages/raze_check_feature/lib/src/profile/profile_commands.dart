@@ -20,6 +20,8 @@ final class ProfileCommands {
 }
 
 String profileError(CheckError code) => switch (code) {
+  CheckError.incompatibleCompanyName =>
+    'The company name exceeds the 120-character membership limit. Ask the owner to open More → Correct company name, then retry enrollment or replacement.',
   CheckError.wrongSecret => 'The passphrase is incorrect. Try again.',
   CheckError.recoveryRequired =>
     'This device cannot unlock the saved data because a local security key is '

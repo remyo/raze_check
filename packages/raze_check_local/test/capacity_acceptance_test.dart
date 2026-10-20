@@ -25,6 +25,7 @@ void main() {
         'platform': Platform.operatingSystem,
         'externalStaff': 100,
         'targetEvents': 10000,
+        'committedEvents': 0,
         'keyAdapter': 'host memory keys, real AES and Ed25519',
         'checkpoints': <Object?>[],
       };
@@ -203,6 +204,11 @@ void main() {
               verified,
             );
             importUs += timer.elapsedMicroseconds;
+            if (imported.status == ImportStatus.received ||
+                imported.status == ImportStatus.needsReview) {
+              metrics['committedEvents'] =
+                  (metrics['committedEvents'] as int? ?? 0) + 1;
+            }
             expect(
               imported.status,
               ImportStatus.received,
@@ -215,7 +221,6 @@ void main() {
             firstBytes ??= wire;
             firstOperation ??= operation;
             if ([1, 10, 100, 1000, 5000, 10000].contains(n + 1)) {
-              metrics['committedEvents'] = n + 1;
               metrics['verifyUs'] = verifyUs;
               metrics['importUs'] = importUs;
               (metrics['checkpoints'] as List).add({

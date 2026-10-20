@@ -185,6 +185,27 @@ void main() {
           ),
           isA<Committed<AttendanceRecord>>(),
         );
+        final correction = await m.request(
+          d.session,
+          p.companyId,
+          receipt.eventId,
+          ProposedCorrection(
+            kind: receipt.kind,
+            utcMs: receipt.claimedUtcMs,
+            offsetMinutes: receipt.offsetMinutes,
+            reason: 'Verify after authority change',
+          ),
+          'correction-after-observation',
+        );
+        expect(correction.kind, MessageKind.correctionRequest);
+        expect(
+          (await m.verifyIncoming(
+            d.session,
+            p.companyId,
+            MessageCodec().encode(correction),
+          )).message.payload.messageId,
+          correction.payload.messageId,
+        );
         final remote =
             jsonDecode(
                   utf8.decode(

@@ -243,6 +243,8 @@ final class LocalCaptureService implements CaptureService {
     if (workplace.message.payload.companyId != companyId) {
       throw const CheckException(CheckError.wrongCompany);
     }
+    // Reconcile a restored slot before a fresh installation starts capture.
+    await currentDraft(session, companyId);
     final op = ids.next();
     final authority = AuthorityCertificate(
       workplace.message.payload.field<List<Object?>>('authority'),
@@ -346,9 +348,55 @@ final class LocalCaptureService implements CaptureService {
         : await repository.read(companyId, 'capture-intent:$op');
     _live(session);
     if (row == null) return null;
-    if (_json(row)['personId'] != a.actor.personId ||
-        _json(row)['installationId'] != a.actor.installationId) {
-      throw const CheckException(CheckError.revokedCredential);
+    if (_json(row)['personId'] != a.actor.personId) {
+      throw const CheckException(CheckError.unauthorized);
+    }
+    if (_json(row)['installationId'] != a.actor.installationId) {
+      // Only an activated current installation may retire this pointer. The old
+      // intent, operation, result, event and signed receipt remain untouched.
+      final result = await _commit(
+        CommandContext(
+          companyId: companyId,
+          session: session,
+          operationId: 'retire-capture:${a.actor.installationId}:$op',
+          authorityGenerationId: a.company.authorityGenerationId,
+        ),
+        ['retire-capture', a.actor.personId, a.actor.installationId, op],
+        (view) async {
+          final current = (await view.read(slot!.id))!;
+          if (_json(current)['operationId'] != op) {
+            throw const CheckException(CheckError.invalidTransition);
+          }
+          final old = (await view.read(row.id))!;
+          if (_json(old)['personId'] != a.actor.personId ||
+              _json(old)['installationId'] == a.actor.installationId) {
+            throw const CheckException(CheckError.invalidTransition);
+          }
+          final retired = _row(companyId, current.id, 'captureSlot', {
+            'operationId': null,
+          }, current.revision + 1);
+          return Mutation(
+            [retired],
+            [],
+            [],
+            retired,
+            personalRecords: [
+              PersonalRecordAssociation(a.actor.personId, retired.id),
+            ],
+            personalOperationOwners: {a.actor.personId},
+          );
+        },
+        (view) async {
+          await authorization.require(
+            session,
+            companyId,
+            view.read,
+            generation: a.company.authorityGenerationId,
+          );
+        },
+      );
+      _value(result);
+      return null;
     }
     return _draft(row);
   }
@@ -566,7 +614,12 @@ final class LocalCaptureService implements CaptureService {
     String companyId,
     String eventId,
   ) async {
-    final actor = _actor(session);
+    final actor = (await authorization.require(
+      session,
+      companyId,
+      (id) => repository.read(companyId, id),
+      issue: false,
+    )).actor;
     final row = await repository.read(companyId, 'receipt:$eventId');
     if (row == null) throw const CheckException(CheckError.malformed);
     final receipt = _receipt(row);
