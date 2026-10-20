@@ -65,6 +65,49 @@ class Companies implements CompanyService {
 }
 
 void main() {
+  testWidgets(
+    'old staff draft completion preserves replacement draft in same company',
+    (tester) async {
+      final service = Companies()..pending = Completer();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CompanyWorkspace(
+              companies: service,
+              session: service.session,
+              ids: SecureIds(),
+              onAuthorizedActivity: () {},
+              onSessionChanged: (_) {},
+              onLocked: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add staff'));
+      await tester.pumpAndSettle();
+      final draft = tester.widget<StaffDetailScreen>(
+        find.byType(StaffDetailScreen),
+      );
+      final pending = draft.onSave(const StaffDraft(name: 'Old'));
+      await tester.pump();
+      tester
+          .widget<StaffDetailScreen>(find.byType(StaffDetailScreen))
+          .onCancel();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Add staff'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('staff-name')), 'New draft');
+      service.pending!.complete(const Rejected(CheckError.storageFailure));
+      await pending;
+      await tester.pumpAndSettle();
+      expect(find.text('New draft'), findsOneWidget);
+      expect(
+        tester.widget<StaffDetailScreen>(find.byType(StaffDetailScreen)).error,
+        isNull,
+      );
+    },
+  );
   testWidgets('personal staff grants do not show operator management actions', (
     tester,
   ) async {

@@ -9,6 +9,11 @@ import '../team/staff_list_screen.dart';
 import 'company_setup_screen.dart';
 import '../attendance/capture_screen.dart';
 import '../attendance/review_queue_screen.dart';
+import '../host/check_services.dart';
+import '../host/check_feature_host.dart';
+import '../dashboard/staff_home_screen.dart';
+import '../dashboard/manager_home_screen.dart';
+import '../reports/attendance_report_screen.dart';
 
 class CompanySwitcher extends StatelessWidget {
   const CompanySwitcher({
@@ -58,6 +63,10 @@ class CompanyWorkspace extends StatefulWidget {
     required this.onSessionChanged,
     required this.onLocked,
     this.canCreateCompany = true,
+    this.services,
+    this.host,
+    this.initialCompanyId,
+    this.onRecovery,
     this.enrollment,
     this.messages,
     this.pickHistory,
@@ -65,6 +74,10 @@ class CompanyWorkspace extends StatefulWidget {
     this.attendance,
     this.attendanceMessages,
   });
+  final CheckServices? services;
+  final CheckFeatureHost? host;
+  final String? initialCompanyId;
+  final Future<void> Function()? onRecovery;
   final CompanyService companies;
   final EnrollmentService? enrollment;
   final EnrollmentMessagePort? messages;
@@ -78,10 +91,10 @@ class CompanyWorkspace extends StatefulWidget {
   final VoidCallback onAuthorizedActivity, onLocked;
   final ValueChanged<SessionHandle> onSessionChanged;
   @override
-  State<CompanyWorkspace> createState() => _CompanyWorkspaceState();
+  CompanyWorkspaceState createState() => CompanyWorkspaceState();
 }
 
-class _CompanyWorkspaceState extends State<CompanyWorkspace> {
+class CompanyWorkspaceState extends State<CompanyWorkspace> {
   List<Company> _companies = [];
   Company? _selected;
   Membership? _membership;
@@ -96,6 +109,25 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
   String? _error;
   bool _enrolling = false, _capturing = false, _reviewing = false;
   int _generation = 0;
+  int _draftIdentity = 0;
+  int _tab = 0;
+  bool _manualEntry = false;
+  bool get _canInvite =>
+      _membership != null &&
+      _managerMode &&
+      AccessPolicy.eligible(_membership!, Capability.manageMemberships);
+  bool _initialResolved = false, _initialRejected = false;
+  Stream<StaffOverview>? _overview;
+  Future<String>? _backup;
+  bool get _managerMode => _owner || !widget.canCreateCompany;
+  bool get _canReview =>
+      _membership != null &&
+      _managerMode &&
+      AccessPolicy.eligible(_membership!, Capability.reviewAttendance);
+  bool get _canExport =>
+      _membership != null &&
+      _managerMode &&
+      AccessPolicy.eligible(_membership!, Capability.exportAttendance);
   late String _operation;
   @override
   void initState() {
@@ -105,9 +137,9 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
   }
 
   @override
-  void didUpdateWidget(CompanyWorkspace old) {
-    super.didUpdateWidget(old);
-    if (!identical(old.session, widget.session)) {
+  void didUpdateWidget(CompanyWorkspace oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.session, widget.session)) {
       _generation++;
       _enrolling = false;
       _capturing = false;
@@ -117,6 +149,27 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
       _setup = false;
       _reload();
     }
+  }
+
+  /// Capture UI context before a host presents recovery. The returned callback
+  /// ignores a later switch, replacement session, or disposed workspace.
+  VoidCallback prepareRecoveryRefresh() {
+    final generation = _generation,
+        session = widget.session,
+        company = _selected;
+    return () {
+      if (!mounted ||
+          generation != _generation ||
+          !identical(session, widget.session) ||
+          company == null ||
+          company.id != _selected?.id ||
+          widget.services == null) {
+        return;
+      }
+      setState(() {
+        _backup = _backupText(widget.services!, company);
+      });
+    };
   }
 
   bool get _canManage =>
@@ -145,6 +198,23 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
     try {
       final companies = await widget.companies.listCompanies(widget.session);
       if (!mounted || generation != _generation) return;
+      if (!_initialResolved && widget.initialCompanyId != null) {
+        _initialResolved = true;
+        final initial = companies
+            .where((c) => c.id == widget.initialCompanyId)
+            .firstOrNull;
+        if (initial == null) {
+          setState(() {
+            _initialRejected = true;
+            _loading = false;
+            _selected = null;
+            _companies = [];
+          });
+          return;
+        }
+        _selected = initial;
+      }
+      if (_initialRejected) return;
       setState(() {
         _companies = companies;
         _selected =
@@ -181,6 +251,15 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
       if (!mounted || generation != _generation) return;
       setState(() {
         _membership = member;
+        final services = widget.services;
+        if (services != null) {
+          _overview = _canReview
+              ? services.queries.forManager(_context())
+              : widget.canCreateCompany
+              ? services.queries.forStaff(widget.session, company.id)
+              : null;
+          _backup = _backupText(services, company);
+        }
         _staff = staff;
         _members = members;
         _loading = false;
@@ -237,6 +316,8 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
     _capturing = false;
     _reviewing = false;
     _enrolling = false;
+    _draftIdentity++;
+    _busy = false;
     _setup = setup;
     _draft = !setup;
     _operator = false;
@@ -244,6 +325,8 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
     _error = null;
   });
   void _cancel() => setState(() {
+    _draftIdentity++;
+    _busy = false;
     _draft = false;
     _setup = false;
     _operator = false;
@@ -261,6 +344,7 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
     bool keepOperator = false,
   }) async {
     final generation = _generation;
+    final draftIdentity = _draftIdentity;
     setState(() {
       _busy = true;
       _error = null;
@@ -273,7 +357,7 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
         return;
       }
       if (result is Committed<T>) widget.onAuthorizedActivity();
-      if (generation != _generation) return;
+      if (generation != _generation || draftIdentity != _draftIdentity) return;
       switch (result) {
         case Committed<T>():
           setState(() {
@@ -304,7 +388,9 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
           });
       }
     } catch (e) {
-      if (generation == _generation) _failure(e);
+      if (generation == _generation && draftIdentity == _draftIdentity) {
+        _failure(e);
+      }
     }
   }
 
@@ -314,63 +400,67 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
     _enrolling = true;
   });
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      if (widget.attendance != null && _selected != null)
-        TextButton(
-          onPressed: () => setState(() {
-            _capturing = false;
-            _enrolling = false;
-            _reviewing = true;
-          }),
-          child: const Text('Review and attendance history'),
-        ),
-      if (widget.capture != null &&
-          _selected != null &&
-          widget.canCreateCompany)
-        TextButton(
-          onPressed: () => setState(() {
-            _enrolling = false;
-            _capturing = true;
-            _reviewing = false;
-          }),
-          child: const Text('Attendance and receipts'),
-        ),
-      if (widget.enrollment != null && widget.messages != null)
-        TextButton(
-          onPressed: _openEnrollment,
-          child: Text(
-            _canManage ? 'Invite or review join' : 'Join or receive membership',
-          ),
-        ),
+  Widget build(BuildContext context) => widget.services != null
+      ? _feature(context)
+      : Column(
+          children: [
+            if (widget.attendance != null && _selected != null)
+              TextButton(
+                onPressed: () => setState(() {
+                  _capturing = false;
+                  _enrolling = false;
+                  _reviewing = true;
+                }),
+                child: const Text('Review and attendance history'),
+              ),
+            if (widget.capture != null &&
+                _selected != null &&
+                widget.canCreateCompany)
+              TextButton(
+                onPressed: () => setState(() {
+                  _enrolling = false;
+                  _capturing = true;
+                  _reviewing = false;
+                }),
+                child: const Text('Attendance and receipts'),
+              ),
+            if (widget.enrollment != null && widget.messages != null)
+              TextButton(
+                onPressed: _openEnrollment,
+                child: Text(
+                  _canManage
+                      ? 'Invite or review join'
+                      : 'Join or receive membership',
+                ),
+              ),
 
-      Row(
-        children: [
-          Expanded(
-            child: CompanySwitcher(
-              companies: _companies,
-              selected: _selected,
-              onSelected: _switch,
+            Row(
+              children: [
+                Expanded(
+                  child: CompanySwitcher(
+                    companies: _companies,
+                    selected: _selected,
+                    onSelected: _switch,
+                  ),
+                ),
+                if (widget.canCreateCompany)
+                  IconButton(
+                    tooltip: 'Create company',
+                    onPressed: () => _newDraft(setup: true),
+                    icon: const Icon(Icons.add_business),
+                  ),
+              ],
             ),
-          ),
-          if (widget.canCreateCompany)
-            IconButton(
-              tooltip: 'Create company',
-              onPressed: () => _newDraft(setup: true),
-              icon: const Icon(Icons.add_business),
-            ),
-        ],
-      ),
-      if (_selected != null && !_setup)
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Text(
-            '${_selected!.timeZoneId} · Root ${_selected!.rootFingerprint.substring(0, _selected!.rootFingerprint.length.clamp(0, 12))}',
-          ),
-        ),
-      Expanded(child: _body()),
-    ],
-  );
+            if (_selected != null && !_setup)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Text(
+                  '${_selected!.timeZoneId} · Root ${_selected!.rootFingerprint.substring(0, _selected!.rootFingerprint.length.clamp(0, 12))}',
+                ),
+              ),
+            Expanded(child: _body()),
+          ],
+        );
   Widget _body() {
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_reviewing && widget.attendance != null && _selected != null) {
@@ -384,6 +474,8 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
             child: ReviewWorkspace(
               key: ValueKey('review-${_selected!.id}'),
               service: widget.attendance!,
+              initialManual: _manualEntry,
+              queries: widget.services?.queries,
               session: widget.session,
               company: _selected!,
               ids: widget.ids,
@@ -441,11 +533,12 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
               pickHistory: widget.pickHistory,
               key: ValueKey('enrollment-${_selected?.id}'),
               service: widget.enrollment!,
+              companies: widget.companies,
               session: widget.session,
               ids: widget.ids,
               messages: widget.messages!,
               company: _selected,
-              canManage: _canManage,
+              canManage: _canInvite,
               owner: _owner,
               manualStaff: _staff
                   .where(
@@ -489,7 +582,14 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Create your first company to manage staff offline.'),
+            const Text(
+              'Join your company with an invitation, or create a company to manage staff.',
+            ),
+            if (widget.enrollment != null && widget.messages != null)
+              FilledButton(
+                onPressed: _openEnrollment,
+                child: const Text('Join company'),
+              ),
             if (_error != null) Text(_error!),
             FilledButton(
               onPressed: () => _newDraft(setup: true),
@@ -576,6 +676,298 @@ class _CompanyWorkspaceState extends State<CompanyWorkspace> {
       memberships: _members,
       onSelect: (s) => _newDraft(staff: s),
       onAdd: () => _newDraft(),
+    );
+  }
+
+  Future<String> _backupText(CheckServices services, Company company) async {
+    try {
+      final backup = await services.backups.last(widget.session);
+      if (backup == null) return 'No backup recorded on this device.';
+      final scope = backup.scope;
+      if (scope is CompanyScope && scope.companyId != company.id) {
+        return 'Latest backup is for another company. No backup age is available here.';
+      }
+      final days = DateTime.now()
+          .toUtc()
+          .difference(
+            DateTime.fromMillisecondsSinceEpoch(
+              backup.createdUtcMs,
+              isUtc: true,
+            ),
+          )
+          .inDays
+          .clamp(0, 99999);
+      return '${scope is PersonalScope ? "Personal" : "Company"} backup · $days day(s) old · created ${attendanceTime(backup.createdUtcMs, company.timeZoneId)}. ${backup.externalCopyConfirmed ? "External copy confirmed by you." : "Private copy only; external copy not confirmed."}';
+    } on CheckException {
+      return 'No accessible backup metadata for this session.';
+    }
+  }
+
+  void _attendance() => setState(() {
+    _tab = 1;
+    _manualEntry = false;
+    _capturing = false;
+    _enrolling = false;
+    _reviewing = true;
+  });
+  void _capture() => setState(() {
+    _capturing = true;
+    _reviewing = false;
+    _enrolling = false;
+  });
+  Future<void> _report() async {
+    final company = _selected!;
+    await widget.host!.open(
+      context,
+      AttendanceReportScreen(
+        services: widget.services!,
+        session: widget.session,
+        company: company,
+        canExport: _canExport,
+        personalAllowed: widget.canCreateCompany,
+      ),
+      'attendance-report',
+    );
+  }
+
+  Widget _feature(BuildContext context) {
+    if (_initialRejected) {
+      return const Center(
+        child: Text(
+          'Requested company access was rejected. Exit and choose an authorized company.',
+        ),
+      );
+    }
+    final manager = _managerMode;
+    final destinations = manager
+        ? const [
+            ('Overview', Icons.dashboard_outlined),
+            ('Attendance', Icons.fact_check_outlined),
+            ('Team', Icons.people_outline),
+            ('More', Icons.more_horiz),
+          ]
+        : const [
+            ('Home', Icons.home_outlined),
+            ('Attendance', Icons.fact_check_outlined),
+            ('Profile', Icons.person_outline),
+          ];
+    return Column(
+      children: [
+        Row(
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(left: 12),
+              child: SizedBox(
+                width: 48,
+                height: 48,
+                child:
+                    widget.host?.iconBuilder?.call(context) ??
+                    Image.asset(
+                      'packages/raze_check_feature/assets/branding/raze_check_logo_master.png',
+                      width: 48,
+                      height: 48,
+                      semanticLabel: 'Raze Check mascot',
+                    ),
+              ),
+            ),
+            Expanded(
+              child: CompanySwitcher(
+                companies: _companies,
+                selected: _selected,
+                onSelected: _switch,
+              ),
+            ),
+            if (widget.canCreateCompany)
+              IconButton(
+                tooltip: 'Create company',
+                onPressed: () => _newDraft(setup: true),
+                icon: const Icon(Icons.add_business),
+              ),
+          ],
+        ),
+        if (_selected != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            child: Text(
+              '${manager ? "Management" : "Staff"} · ${_selected!.timeZoneId}',
+            ),
+          ),
+        Expanded(child: _featureBody()),
+        if (_selected != null)
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: LayoutBuilder(
+                builder: (context, box) {
+                  final large = MediaQuery.textScalerOf(context).scale(14) > 21;
+                  final columns = large && box.maxWidth < 600
+                      ? 2
+                      : destinations.length;
+                  return Wrap(
+                    children: [
+                      for (var i = 0; i < destinations.length; i++)
+                        SizedBox(
+                          width: box.maxWidth / columns,
+                          child: Semantics(
+                            selected: _tab == i,
+                            child: TextButton(
+                              style: TextButton.styleFrom(
+                                backgroundColor: _tab == i
+                                    ? Theme.of(
+                                        context,
+                                      ).colorScheme.secondaryContainer
+                                    : null,
+                                foregroundColor: _tab == i
+                                    ? Theme.of(
+                                        context,
+                                      ).colorScheme.onSecondaryContainer
+                                    : null,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 2,
+                                  vertical: 8,
+                                ),
+                              ),
+                              onPressed: () => setState(() {
+                                _tab = i;
+                                _enrolling = false;
+                                _capturing = false;
+                                _reviewing = i == 1;
+                                _draft = false;
+                                _operator = false;
+                                _setup = false;
+                              }),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(destinations[i].$2),
+                                  Text(
+                                    destinations[i].$1,
+                                    textAlign: TextAlign.center,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.labelMedium,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _featureBody() {
+    if (_loading ||
+        _selected == null ||
+        _setup ||
+        _draft ||
+        _operator ||
+        _enrolling ||
+        _capturing ||
+        _reviewing) {
+      return _body();
+    }
+    if (_tab == 0) {
+      if (_overview == null) {
+        return const Center(
+          child: Text(
+            'Your company tools are available in Team and More. Attendance overview requires review permission.',
+          ),
+        );
+      }
+      return StreamBuilder<StaffOverview>(
+        key: ValueKey('overview-$_generation-${_selected!.id}'),
+        stream: _overview,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                profileError(
+                  snapshot.error is CheckException
+                      ? (snapshot.error as CheckException).code
+                      : CheckError.storageFailure,
+                ),
+              ),
+            );
+          }
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          return FutureBuilder<String>(
+            future: _backup,
+            builder: (context, backup) {
+              final value = snapshot.data!;
+              return _canReview
+                  ? ManagerHomeScreen(
+                      showContext: false,
+                      overview: value as ManagerOverview,
+                      onAttendance: _attendance,
+                      onManual: () {
+                        _attendance();
+                        setState(() => _manualEntry = true);
+                      },
+                      onInvite: _canInvite ? _openEnrollment : null,
+                      onWorkplace: _owner ? _capture : null,
+                      backupLabel: backup.data,
+                      onBackup: widget.onRecovery == null
+                          ? null
+                          : () => widget.onRecovery!(),
+                    )
+                  : StaffHomeScreen(
+                      showContext: false,
+                      overview: value,
+                      onCapture: _capture,
+                      onAttendance: _attendance,
+                      backupLabel: backup.data,
+                      onBackup: widget.onRecovery == null
+                          ? null
+                          : () => widget.onRecovery!(),
+                    );
+            },
+          );
+        },
+      );
+    }
+    if (_tab == 2 && _managerMode) return _body();
+    return DashboardLayout(
+      children: [
+        Text(
+          _managerMode ? 'Company tools' : 'Your profile and company',
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
+        if (_canExport || widget.canCreateCompany)
+          FilledButton.icon(
+            onPressed: _report,
+            icon: const Icon(Icons.file_download_outlined),
+            label: const Text('Attendance report'),
+          ),
+        if (widget.enrollment != null && widget.messages != null)
+          OutlinedButton(
+            onPressed: _openEnrollment,
+            child: Text(
+              _canInvite
+                  ? 'Invite or review join'
+                  : 'Join or receive membership',
+            ),
+          ),
+        if (widget.onRecovery != null)
+          OutlinedButton(
+            onPressed: widget.onRecovery,
+            child: const Text('Backup and device recovery'),
+          ),
+        Text('Company ID: ${_selected!.id}'),
+        Text('Trusted root: ${_selected!.rootFingerprint}'),
+        const Text(
+          'Your company permissions determine which actions are available.',
+        ),
+      ],
     );
   }
 }

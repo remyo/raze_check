@@ -48,7 +48,11 @@ class ReviewWorkspace extends StatefulWidget {
     required this.onChanged,
     required this.onLocked,
     this.messages,
+    this.queries,
+    this.initialManual = false,
   });
+  final AttendanceQueries? queries;
+  final bool initialManual;
   final AttendanceService service;
   final SessionHandle session;
   final Company company;
@@ -65,6 +69,9 @@ class _ReviewWorkspaceState extends State<ReviewWorkspace> {
   bool busy = false, manual = false, correcting = false;
   int epoch = 0;
   List<AttendanceRecord> records = [];
+  AttendanceCursor? nextPage;
+  AttendanceScope get scope =>
+      widget.canManage ? AttendanceScope.management : AttendanceScope.personal;
   List<AttendanceSubject> subjects = [];
   AttendanceRecord? selected;
   List<DecisionRecord> history = [];
@@ -77,6 +84,7 @@ class _ReviewWorkspaceState extends State<ReviewWorkspace> {
   @override
   void initState() {
     super.initState();
+    manual = widget.initialManual && widget.canManage;
     reload();
   }
 
@@ -99,6 +107,7 @@ class _ReviewWorkspaceState extends State<ReviewWorkspace> {
       message = null;
       request = null;
       records = [];
+      nextPage = null;
       error = null;
       operation = widget.ids.next();
       reload();
@@ -122,7 +131,11 @@ class _ReviewWorkspaceState extends State<ReviewWorkspace> {
           'Return to the original company to continue',
         );
       }
-      await service.list(session, company.id);
+      if (widget.queries != null) {
+        await widget.queries!.authorize(session, company.id, scope: scope);
+      } else {
+        await service.list(session, company.id);
+      }
       if (!current(e)) {
         throw const TransferException(
           'Return to the original company to continue',
@@ -173,7 +186,7 @@ class _ReviewWorkspaceState extends State<ReviewWorkspace> {
         company = widget.company;
     setState(() => busy = true);
     try {
-      final next = await service.list(session, company.id);
+      final next = await loadRecords(service, session, company.id, e);
       final choices = widget.canManage
           ? await service.subjects(session, company.id)
           : <AttendanceSubject>[];
@@ -186,6 +199,44 @@ class _ReviewWorkspaceState extends State<ReviewWorkspace> {
     }
   }
 
+  Future<List<AttendanceRecord>> loadRecords(
+    AttendanceService service,
+    SessionHandle session,
+    String company,
+    int e,
+  ) async {
+    final queries = widget.queries;
+    if (queries == null) return service.list(session, company);
+    final page = await queries.historyPage(
+      session,
+      company,
+      scope: scope,
+      cancelled: () => !current(e),
+    );
+    if (current(e)) nextPage = page.next;
+    return page.items.map((item) => item.record).toList();
+  }
+
+  Future<void> more() => run((e) async {
+    final page = await widget.queries!.historyPage(
+      widget.session,
+      widget.company.id,
+      scope: scope,
+      cursor: nextPage,
+      cancelled: () => !current(e),
+    );
+    if (!current(e)) return;
+    if (page.refreshRequired) {
+      nextPage = null;
+      records = [];
+      await reload();
+      return;
+    }
+    setState(() {
+      records = [...records, ...page.items.map((item) => item.record)];
+      nextPage = page.next;
+    });
+  });
   T committed<T>(CommandResult<T> r) => switch (r) {
     Committed<T>() => r.value,
     Rejected<T>() => throw CheckException(r.error),
@@ -260,7 +311,7 @@ class _ReviewWorkspaceState extends State<ReviewWorkspace> {
         throw CheckException(result.error!);
       }
       if (!current(e)) return;
-      final next = await service.list(session, company.id);
+      final next = await loadRecords(service, session, company.id, e);
       if (current(e)) {
         setState(() {
           records = next;
@@ -443,6 +494,13 @@ class _ReviewWorkspaceState extends State<ReviewWorkspace> {
                       }),
                 child: const Text('Manual entry'),
               ),
+            if (nextPage != null)
+              TextButton(
+                onPressed: busy ? null : more,
+                child: const Text('Load more attendance'),
+              ),
+            if (widget.queries != null)
+              const Text('History ordered by stable event ID'),
             TextButton(
               onPressed: busy ? null : reload,
               child: const Text('Refresh attendance'),

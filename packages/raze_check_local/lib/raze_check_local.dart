@@ -25,3 +25,6 @@ export 'src/recovery/local_authority_history.dart';
 export 'src/recovery/local_device_replacement_service.dart';
 
 export 'src/recovery/local_handover_service.dart';
+
+export 'src/attendance/local_attendance_queries.dart';
+export 'src/files/attendance_csv.dart';

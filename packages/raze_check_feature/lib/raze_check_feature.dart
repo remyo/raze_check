@@ -36,3 +36,13 @@ export 'src/recovery/recovery_unlock_screen.dart';
 
 export 'src/recovery/authority_history_screen.dart';
 export 'src/recovery/recovery_workspace.dart';
+
+export 'src/host/check_services.dart';
+export 'src/host/check_feature_host.dart';
+export 'src/theme/check_theme.dart';
+export 'src/dashboard/staff_home_screen.dart';
+export 'src/dashboard/manager_home_screen.dart';
+
+export 'src/raze_check_feature.dart';
+export 'src/profile/profile_gate.dart';
+export 'src/reports/attendance_report_screen.dart';

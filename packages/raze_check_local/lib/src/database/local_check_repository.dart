@@ -8,6 +8,7 @@ import '../files/app_paths.dart';
 import 'check_database.dart' show CheckDatabase;
 import '../recovery/archive_records.dart';
 part 'archive_repository.dart';
+part 'attendance_read.dart';
 
 /// Transactional local adapter. Authorization stays in application services.
 final class LocalCheckRepository implements CheckRepository {

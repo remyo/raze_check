@@ -55,6 +55,7 @@ class EnrollmentWorkspace extends StatefulWidget {
     required this.ids,
     required this.messages,
     this.pickHistory,
+    this.companies,
     this.company,
     this.canManage = false,
     this.owner = false,
@@ -62,6 +63,7 @@ class EnrollmentWorkspace extends StatefulWidget {
     required this.onChanged,
     required this.onLocked,
   });
+  final CompanyService? companies;
   final EnrollmentService service;
   final SessionHandle session;
   final IdGenerator ids;
@@ -110,9 +112,14 @@ class _EnrollmentWorkspaceState extends State<EnrollmentWorkspace> {
   Future<void> _loadPending() async {
     if (widget.canManage) return;
     await _run((epoch, session) async {
+      final company = widget.company;
+      final member = company == null
+          ? null
+          : await widget.companies?.membership(session, company.id);
       final pending = await widget.service.pendingJoins(session);
       if (!_current(epoch)) return;
       setState(() {
+        _active = member?.active == true;
         _savedPending = pending;
         _pending = pending.firstOrNull;
       });

@@ -154,6 +154,8 @@ void main() {
       tester.testTextInput.hide();
       await tester.drag(find.byType(ListView), const Offset(0, -450));
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Save staff'));
+      await tester.pumpAndSettle();
       await tester.runAsync(() async {
         await tester.tap(find.text('Save staff'));
         await Future<void>.delayed(const Duration(milliseconds: 500));

@@ -47,3 +47,5 @@ export 'src/recovery/authority_history.dart';
 export 'src/recovery/device_replacement_service.dart';
 
 export 'src/recovery/handover_service.dart';
+
+export 'src/attendance/attendance_queries.dart';

@@ -13,6 +13,7 @@ final class LocalComposition {
     required this.enrollment,
     required this.capture,
     required this.attendance,
+    required this.queries,
     required this.archives,
     required this.replacement,
     required this.handover,
@@ -27,6 +28,7 @@ final class LocalComposition {
   final EnrollmentService enrollment;
   final CaptureService capture;
   final AttendanceService attendance;
+  final AttendanceQueries queries;
   final LocalArchiveService archives;
   final DeviceReplacementService replacement;
   final HandoverService handover;
@@ -101,6 +103,11 @@ final class LocalComposition {
           keys: keys,
           clock: localClock,
           ids: SecureIds(),
+        ),
+        queries: LocalAttendanceQueries(
+          repository: repository,
+          identity: identity,
+          clock: localClock,
         ),
         attendance: LocalAttendanceService(
           repository: repository,
