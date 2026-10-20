@@ -33,3 +33,7 @@ Record OS/device class, exact compiled entrypoint/revision/artifact hash, date, 
 | Disposable uninstall/reinstall from external backup | Passed with retained actual prior archive, fresh namespaced OS keys | Passed with retained actual prior archive, fresh namespaced OS keys; historical Keychain untouched |
 
 The native integration helper isolates persistent paths and real secure-key namespaces by a random run ID. It retains owned synthetic evidence; it does not delete global keys or existing company data. A new absent package is not proof of empty historical iOS Keychain state. Local signing uses existing assets only; no provisioning updates, account edits, enrollment/trust changes or automatic Android license acceptance. Use `--keep-app-running` for prebuilt drive to avoid its default uninstall cleanup.
+
+## Current iOS signing selection
+
+Normal Runner builds select the Israel Eusebio personal team with automatic signing in Debug, Profile and Release. Its local development certificate is available, but a matching local provisioning profile for `com.remyo.razecheck` is currently absent; a new physical signed build under that team has not been verified. No account or provisioning changes were made. The earlier iPhone acceptance artifacts used the existing Jiang Xia team profile; their retained hashes and results remain evidence of those original artifacts, not of a build signed by the newly selected team.
