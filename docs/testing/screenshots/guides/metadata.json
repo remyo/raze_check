@@ -1,0 +1,228 @@
+{
+  "schema_version": 1,
+  "toolchain": {
+    "flutter": "3.44.7",
+    "dart": "3.12.2",
+    "framework_revision": "84fc5cbb223bc12f83d65b647ff8a56caf779ffd"
+  },
+  "capture_execution": {
+    "stage": "visual-final",
+    "cwd": "/Users/rem/.codex/worktrees/raze-check-foundation/raze_check/packages/raze_check_feature",
+    "command": [
+      "/Users/rem/fvm/versions/3.44.7/bin/flutter",
+      "test",
+      "--no-pub",
+      "--concurrency=1",
+      "test/guide_visual_test.dart"
+    ],
+    "source_commit": "c0aa12f06f3b5c5edf1dcbb8583f0b9eddc4be7e",
+    "started_utc": "2026-10-20T11:57:31.976303+00:00",
+    "dirty_render_inputs": [
+      {
+        "path": "packages/raze_check_feature/test/guide_visual_test.dart",
+        "sha256": "6912158fb7725b7bc52f3d47048c9b41cdbcc528b63ea6481ae6312ba2d81a00"
+      }
+    ],
+    "environment": {
+      "RAZE_VISUAL_DIR": "/Users/rem/.codex/worktrees/raze-check-foundation/raze_check/docs/testing/screenshots/guides"
+    },
+    "ended_utc": "2026-10-20T11:58:35.544439+00:00",
+    "exit_code": 0
+  },
+  "images": [
+    {
+      "file": "welcome-light.png",
+      "source_commit": "c0aa12f06f3b5c5edf1dcbb8583f0b9eddc4be7e",
+      "dirty_source_manifest": [
+        {
+          "path": "packages/raze_check_feature/test/guide_visual_test.dart",
+          "sha256": "6912158fb7725b7bc52f3d47048c9b41cdbcc528b63ea6481ae6312ba2d81a00"
+        }
+      ],
+      "capture_type": "actual Flutter widget render",
+      "synthetic_fixture": "Independent synthetic Staff and Owner file-backed repositories, enrolled Staff, one manager-received acknowledged check-in and a separate local-only checkout. Actual RazeCheckFeature and real local services; inert transfer/files/share adapters; bundled Manrope and MaterialIcons.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "device_pixel_ratio": 1,
+      "text_scale": 1,
+      "theme": "light",
+      "guide_id": "welcome",
+      "variant_id": "public",
+      "step_id": "welcome-offline",
+      "sha256": "45ff5afcd4d5f02403ec95fb125a91c9b1a4ec0e65b26dc9028b7cdd3f612595",
+      "visually_inspected": true
+    },
+    {
+      "file": "welcome-dark.png",
+      "source_commit": "c0aa12f06f3b5c5edf1dcbb8583f0b9eddc4be7e",
+      "dirty_source_manifest": [
+        {
+          "path": "packages/raze_check_feature/test/guide_visual_test.dart",
+          "sha256": "6912158fb7725b7bc52f3d47048c9b41cdbcc528b63ea6481ae6312ba2d81a00"
+        }
+      ],
+      "capture_type": "actual Flutter widget render",
+      "synthetic_fixture": "Independent synthetic Staff and Owner file-backed repositories, enrolled Staff, one manager-received acknowledged check-in and a separate local-only checkout. Actual RazeCheckFeature and real local services; inert transfer/files/share adapters; bundled Manrope and MaterialIcons.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "device_pixel_ratio": 1,
+      "text_scale": 1,
+      "theme": "dark",
+      "guide_id": "welcome",
+      "variant_id": "public",
+      "step_id": "welcome-offline",
+      "sha256": "c233d1e02ade8182f5f6c0634f832171082c4e422f66e6edf3cc7cf4bb1f6a03",
+      "visually_inspected": true
+    },
+    {
+      "file": "staff-guides.png",
+      "source_commit": "c0aa12f06f3b5c5edf1dcbb8583f0b9eddc4be7e",
+      "dirty_source_manifest": [
+        {
+          "path": "packages/raze_check_feature/test/guide_visual_test.dart",
+          "sha256": "6912158fb7725b7bc52f3d47048c9b41cdbcc528b63ea6481ae6312ba2d81a00"
+        }
+      ],
+      "capture_type": "actual Flutter widget render",
+      "synthetic_fixture": "Independent synthetic Staff and Owner file-backed repositories, enrolled Staff, one manager-received acknowledged check-in and a separate local-only checkout. Actual RazeCheckFeature and real local services; inert transfer/files/share adapters; bundled Manrope and MaterialIcons. Actual unlocked Staff library, staff capture/review variants available and team absent; no active guide run.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "device_pixel_ratio": 1,
+      "text_scale": 1,
+      "theme": "light",
+      "guide_id": null,
+      "variant_id": null,
+      "step_id": null,
+      "sha256": "c79fd3bea12b4441be700685248229d944812b6fd870541700b1cf969a364f99",
+      "visually_inspected": true
+    },
+    {
+      "file": "capture-highlight.png",
+      "source_commit": "c0aa12f06f3b5c5edf1dcbb8583f0b9eddc4be7e",
+      "dirty_source_manifest": [
+        {
+          "path": "packages/raze_check_feature/test/guide_visual_test.dart",
+          "sha256": "6912158fb7725b7bc52f3d47048c9b41cdbcc528b63ea6481ae6312ba2d81a00"
+        }
+      ],
+      "capture_type": "actual Flutter widget render",
+      "synthetic_fixture": "Independent synthetic Staff and Owner file-backed repositories, enrolled Staff, one manager-received acknowledged check-in and a separate local-only checkout. Actual RazeCheckFeature and real local services; inert transfer/files/share adapters; bundled Manrope and MaterialIcons. The already-saved synthetic checkout draft was closed with capture.finishDraft before mounting; both receipts retained. No new punch or workplace scan. Landscape preserves the portrait context token and uses safe explanation fallback when highlight cannot fit.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "device_pixel_ratio": 1,
+      "text_scale": 1,
+      "theme": "light",
+      "guide_id": "capture",
+      "variant_id": "staff",
+      "step_id": "capture-kind",
+      "sha256": "9825a3b0d4512a2cc45056b0fa86e5d768bb4574540e30399c0c0393b81c24f7",
+      "visually_inspected": true
+    },
+    {
+      "file": "management-review.png",
+      "source_commit": "c0aa12f06f3b5c5edf1dcbb8583f0b9eddc4be7e",
+      "dirty_source_manifest": [
+        {
+          "path": "packages/raze_check_feature/test/guide_visual_test.dart",
+          "sha256": "6912158fb7725b7bc52f3d47048c9b41cdbcc528b63ea6481ae6312ba2d81a00"
+        }
+      ],
+      "capture_type": "actual Flutter widget render",
+      "synthetic_fixture": "Independent synthetic Staff and Owner file-backed repositories, enrolled Staff, one manager-received acknowledged check-in and a separate local-only checkout. Actual RazeCheckFeature and real local services; inert transfer/files/share adapters; bundled Manrope and MaterialIcons.",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "device_pixel_ratio": 1,
+      "text_scale": 1,
+      "theme": "dark",
+      "guide_id": "review",
+      "variant_id": "owner",
+      "step_id": "review-details",
+      "sha256": "c490227071d9d210bd07a1fc088d14c31676cb07714c26939c59570335c0387b",
+      "visually_inspected": true
+    },
+    {
+      "file": "backup-tablet.png",
+      "source_commit": "c0aa12f06f3b5c5edf1dcbb8583f0b9eddc4be7e",
+      "dirty_source_manifest": [
+        {
+          "path": "packages/raze_check_feature/test/guide_visual_test.dart",
+          "sha256": "6912158fb7725b7bc52f3d47048c9b41cdbcc528b63ea6481ae6312ba2d81a00"
+        }
+      ],
+      "capture_type": "actual Flutter widget render",
+      "synthetic_fixture": "Independent synthetic Staff and Owner file-backed repositories, enrolled Staff, one manager-received acknowledged check-in and a separate local-only checkout. Actual RazeCheckFeature and real local services; inert transfer/files/share adapters; bundled Manrope and MaterialIcons. Actual Owner recovery/backup navigation; selected real company scope changes initial personal guide variant to owner. No archive creation, attestation, picker, restore or sharing.",
+      "viewport": {
+        "width": 768,
+        "height": 1024
+      },
+      "device_pixel_ratio": 1,
+      "text_scale": 1,
+      "theme": "light",
+      "guide_id": "backup",
+      "variant_id": "owner",
+      "step_id": "backup-scope",
+      "sha256": "758002885e7d86ad2a50243fd08aaf5e46f2de0c7badf728614decfa549c3314",
+      "visually_inspected": true
+    },
+    {
+      "file": "welcome-large-text.png",
+      "source_commit": "c0aa12f06f3b5c5edf1dcbb8583f0b9eddc4be7e",
+      "dirty_source_manifest": [
+        {
+          "path": "packages/raze_check_feature/test/guide_visual_test.dart",
+          "sha256": "6912158fb7725b7bc52f3d47048c9b41cdbcc528b63ea6481ae6312ba2d81a00"
+        }
+      ],
+      "capture_type": "actual Flutter widget render",
+      "synthetic_fixture": "Independent synthetic Staff and Owner file-backed repositories, enrolled Staff, one manager-received acknowledged check-in and a separate local-only checkout. Actual RazeCheckFeature and real local services; inert transfer/files/share adapters; bundled Manrope and MaterialIcons.",
+      "viewport": {
+        "width": 320,
+        "height": 900
+      },
+      "device_pixel_ratio": 1,
+      "text_scale": 2,
+      "theme": "light",
+      "guide_id": "welcome",
+      "variant_id": "public",
+      "step_id": "welcome-offline",
+      "sha256": "23423d2a9df601f977c865ccba19650bb9d7bb40865b708d9c3d7d99c9198d6f",
+      "visually_inspected": true
+    },
+    {
+      "file": "capture-landscape.png",
+      "source_commit": "c0aa12f06f3b5c5edf1dcbb8583f0b9eddc4be7e",
+      "dirty_source_manifest": [
+        {
+          "path": "packages/raze_check_feature/test/guide_visual_test.dart",
+          "sha256": "6912158fb7725b7bc52f3d47048c9b41cdbcc528b63ea6481ae6312ba2d81a00"
+        }
+      ],
+      "capture_type": "actual Flutter widget render",
+      "synthetic_fixture": "Independent synthetic Staff and Owner file-backed repositories, enrolled Staff, one manager-received acknowledged check-in and a separate local-only checkout. Actual RazeCheckFeature and real local services; inert transfer/files/share adapters; bundled Manrope and MaterialIcons. The already-saved synthetic checkout draft was closed with capture.finishDraft before mounting; both receipts retained. No new punch or workplace scan. Landscape preserves the portrait context token and uses safe explanation fallback when highlight cannot fit.",
+      "viewport": {
+        "width": 844,
+        "height": 390
+      },
+      "device_pixel_ratio": 1,
+      "text_scale": 1,
+      "theme": "light",
+      "guide_id": "capture",
+      "variant_id": "staff",
+      "step_id": "capture-kind",
+      "sha256": "d28c3e0818f33c5d738cee8da3e6a7f3825060bf277a1b847376d2cce27fe6c6",
+      "visually_inspected": true
+    }
+  ],
+  "physical_device_evidence": false,
+  "inspection": "All eight final PNGs opened with view_image; fonts/artwork/guide state and layout inspected. No demonstrated overflow or guide-control clipping. Landscape uses intentional explanatory fallback."
+}

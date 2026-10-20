@@ -86,6 +86,8 @@ void main() {
           await tester.pumpWidget(CheckApp(composition: Future.value(s)));
         });
         await settleIo(tester);
+        await tester.tap(find.text('Skip'));
+        await settleIo(tester);
         await tester.tap(find.text('Unlock company operator'));
         await settleIo(tester);
         await tester.tap(find.text('Operator'));

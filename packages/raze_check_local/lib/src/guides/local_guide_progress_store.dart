@@ -17,7 +17,7 @@ final class LocalGuideProgressStore implements GuideProgressStore {
   Future<T> _ordered<T>(Future<T> Function() operation) {
     final result = _pending.then((_) => operation());
     // Keep the queue usable after a caller observes an operation failure.
-    _pending = result.then<void>((_) {}, onError: (Object _, StackTrace __) {});
+    _pending = result.then<void>((_) {}, onError: (Object _, StackTrace _) {});
     return result;
   }
 
@@ -52,8 +52,9 @@ final class LocalGuideProgressStore implements GuideProgressStore {
       rethrow;
     }
     try {
-      if (bytes.length > _maxBytes)
+      if (bytes.length > _maxBytes) {
         throw const FormatException('Guide file too large');
+      }
       final value = jsonDecode(utf8.decode(bytes));
       if (value is! Map ||
           value['version'] != 1 ||
@@ -97,8 +98,9 @@ final class LocalGuideProgressStore implements GuideProgressStore {
   }
 
   void _validate(GuideProgressSnapshot snapshot) {
-    if (snapshot.entries.length > 64)
+    if (snapshot.entries.length > 64) {
       throw const FormatException('Too many guides');
+    }
     for (final entry in snapshot.entries) {
       if (!_id.hasMatch(entry.guideId) ||
           !_id.hasMatch(entry.variantId) ||
@@ -133,8 +135,9 @@ final class LocalGuideProgressStore implements GuideProgressStore {
             .toList(),
       }),
     );
-    if (bytes.length > _maxBytes)
+    if (bytes.length > _maxBytes) {
       throw const FormatException('Guide output too large');
+    }
     final temporary = File('${_file.path}.tmp');
     await temporary.writeAsBytes(bytes, flush: true);
     await temporary.rename(_file.path);
